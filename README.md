@@ -2,7 +2,7 @@
 
 postmarketOS edge on a **mainline kernel (`7.0.0-sm8150-aurora`)** on the Xiaomi Mi 9, with Plasma Mobile or Phosh.
 Kernel and device-tree patches, pmaports changes, setup scripts for the phone, and a dev environment for macOS or Linux.
-A tech demo: it works on one phone, use at your own risk.
+**A tech demo: it works on one phone, use at your own risk. THIS NEEDS SERIOUS CLEANUP. USE ONLY AT YOUR OWN RISK. I DID THIS BECAUSE I HAD THE PHONE LAYING AROUND AND DECIDED TO HAVE FUN!**
 
 <table><tr>
 <td><img src="docs/screenshots/plasma-system-info.png" width="260" alt="Plasma Mobile System Information: kernel 7.0.0-sm8150-aurora"></td>
@@ -215,5 +215,29 @@ docs/screenshots/      screenshots
 apks/, images/         built packages / local scratch (not in git)
 CLAUDE.md              brief for an AI agent continuing the work
 ```
+
+## Acknowledgements
+
+Nearly everything here stands on other people's work. Thank you:
+
+- **[postmarketOS](https://postmarketos.org)** and its community for pmbootstrap, pmaports, the packaging and the wiki.
+- **Alexey Minnekhanov (Alexey Min)**, who created the cepheus port (device package and mainline DTS) and maintains it
+  ([wiki page](https://wiki.postmarketos.org/wiki/Xiaomi_Mi_9_(xiaomi-cepheus))).
+- The **SM8150 mainline** effort ([#sm8150-mainline:matrix.org](https://matrix.to/#/#sm8150-mainline:matrix.org)): Pan Ortiz and
+  Viola Guerrera (maintainers of `linux-postmarketos-qcom-sm8150`), and Casey Connolly, Uclydde, Arseniy Velikanov (Adomerle),
+  Omnidapps and Shadowsvanish, as listed on the [SoC wiki page](https://wiki.postmarketos.org/wiki/Qualcomm_Snapdragon_855_(SM8150)).
+- Authors of the sibling boards used as templates: Piyush Raj Chouhan (raphael), Degdag Mohamed, Arseniy Velikanov and
+  Ali Nasrullayev (vayu), map220v (nabu, and the sm8150 sound machine driver).
+- Driver authors: Danila Tikhonov (AMS639RQ08 panel), Casey Connolly, Joel Selvaraj and Yassine Oudjana (charger and fuel
+  gauge), STMicroelectronics (FTM5 touch driver), and Robin Snyders and Piyush Raj Chouhan for the fastrpc sensors fix
+  (reviewed by Dmitry Baryshkov).
+- Userspace: Richard Acayan ([hexagonrpc](https://github.com/linux-msm/hexagonrpc)), Dylan Van Assche
+  ([libssc](https://codeberg.org/DylanVanAssche/libssc), [bootmac](https://gitlab.postmarketos.org/postmarketOS/bootmac)),
+  Bastien Nocera ([iio-sensor-proxy](https://gitlab.freedesktop.org/hadess/iio-sensor-proxy)), [linux-msm](https://github.com/linux-msm)
+  (qrtr, tqftpserv, rmtfs) and the msm-firmware-loader contributors.
+- The upstream Linux Qualcomm (arm64/qcom, freedreno, ath10k, ASoC) maintainers and contributors.
+- Xiaomi, for publishing the downstream kernel sources the device facts come from.
+
+This bring-up: Niklas, with an AI coding agent (Claude) doing much of the hands-on work.
 
 Licence: MIT for scripts and docs; kernel patches, DTS and downstream sources are GPL-2.0 (see `LICENSE`).
