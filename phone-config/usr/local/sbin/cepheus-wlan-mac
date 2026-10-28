@@ -1,0 +1,10 @@
+#!/bin/sh
+# Give wlan0 the phone's real MAC from the stock persist partition (ath10k picks a random one each boot).
+# Run by udev (80-cepheus-wlan-mac.rules) when wlan0 appears. msm-firmware-loader mounts persist read-only
+# before the WLAN firmware can start, so the file is already there. wlan_mac.bin line: Intf0MacAddress=0123456789AB
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+f="${WLAN_MAC_FILE:-/run/msm-firmware-loader/mnt/persist/wlan_mac.bin}"
+mac=$(sed -n 's/^Intf0MacAddress=\([0-9A-Fa-f]\{12\}\)$/\1/p' "$f" 2>/dev/null | head -1 | tr A-F a-f | sed 's/../&:/g; s/:$//')
+[ -n "$mac" ] || { echo "cepheus-wlan-mac: no Intf0MacAddress in $f, keeping the driver's MAC" >&2; exit 0; }
+[ -n "$DRY_RUN" ] && { echo "$mac"; exit 0; }
+ip link set dev "$1" address "$mac"

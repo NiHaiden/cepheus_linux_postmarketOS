@@ -1,0 +1,8 @@
+# Binaries: published as GitHub Release assets, not in git
+apks/*.apk
+images/
+# Never commit: stock partition dumps (IMEI/EFS, persist, devinfo)
+backup/
+*.img
+.DS_Store
+CLAUDE.local.md

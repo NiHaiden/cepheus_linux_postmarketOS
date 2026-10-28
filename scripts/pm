@@ -1,0 +1,5 @@
+#!/bin/sh
+# Run a shell command on the phone as `user`.
+#   scripts/pm 'uname -a'
+. "$(dirname "$0")/common.sh"
+exec ssh $SSH_OPTS "$PHONE_USER@$PHONE_IP" "$*"

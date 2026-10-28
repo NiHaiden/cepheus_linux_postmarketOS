@@ -1,0 +1,125 @@
+From 6a18d53cd90b3325e6c25fc9d1c4713e15e6c107 Mon Sep 17 00:00:00 2001
+From: niklas <niklas@local>
+Date: Wed, 28 Oct 2026 13:47:59 +0000
+Subject: [PATCH 2/7] xiaomi-cepheus: enable remoteprocs and WiFi, add
+ nonfree-firmware subpackage
+
+---
+ device/testing/device-xiaomi-cepheus/APKBUILD |  9 +++-
+ .../0005-cepheus-remoteprocs-wifi.patch       | 42 +++++++++++++++++++
+ .../linux-postmarketos-qcom-sm8150/APKBUILD   |  4 +-
+ 3 files changed, 53 insertions(+), 2 deletions(-)
+ create mode 100644 device/testing/linux-postmarketos-qcom-sm8150/0005-cepheus-remoteprocs-wifi.patch
+
+diff --git a/device/testing/device-xiaomi-cepheus/APKBUILD b/device/testing/device-xiaomi-cepheus/APKBUILD
+index be65dd3aac..22a193984d 100644
+--- a/device/testing/device-xiaomi-cepheus/APKBUILD
++++ b/device/testing/device-xiaomi-cepheus/APKBUILD
+@@ -2,7 +2,7 @@
+ maintainer="Alexey Minnekhanov <alexeymin@postmarketos.org>"
+ pkgname=device-xiaomi-cepheus
+ pkgdesc="Xiaomi Mi 9"
+-pkgver=6
++pkgver=7
+ pkgrel=0
+ url="https://postmarketos.org"
+ license="MIT"
+@@ -14,6 +14,7 @@ depends="
+ 	postmarketos-base
+ "
+ makedepends="devicepkg-dev"
++subpackages="$pkgname-nonfree-firmware:nonfree_firmware"
+ source="deviceinfo kernel-cmdline.conf"
+ 
+ build() {
+@@ -24,6 +25,12 @@ package() {
+ 	devicepkg_package $startdir $pkgname
+ }
+ 
++nonfree_firmware() {
++	pkgdesc="Modem, DSP and WiFi firmware (used in place from the stock partitions)"
++	depends="msm-firmware-loader qrtr tqftpserv rmtfs"
++	mkdir "$subpkgdir"
++}
++
+ sha512sums="
+ ffc4240164815cba73fc24adb5f959d9aed7a99726b335bb38aaf377645986ebb28e678eaa5ade4b346a902f22724bbbb89f3c2a167e0a5599adbcddbd46cb10  deviceinfo
+ 42d3a47ebc8109fc3bf1ac03ddae6254ca9bc7b0a64f58cfe652b30a40bdceddf09fd65a46fddeda0138d8b52dbccc2425da06f7705373f4a4ab0babaa35b150  kernel-cmdline.conf
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/0005-cepheus-remoteprocs-wifi.patch b/device/testing/linux-postmarketos-qcom-sm8150/0005-cepheus-remoteprocs-wifi.patch
+new file mode 100644
+index 0000000000..9153930488
+--- /dev/null
++++ b/device/testing/linux-postmarketos-qcom-sm8150/0005-cepheus-remoteprocs-wifi.patch
+@@ -0,0 +1,42 @@
++From: niklas <niklas@local>
++Subject: [PATCH] arm64: dts: qcom: sm8150-xiaomi-cepheus: enable remoteprocs and WiFi
++
++Enable MPSS, ADSP and CDSP with the stock firmware names (served from the
++modem/vendor partitions by msm-firmware-loader) and the WCN3990 WiFi with
++the same supplies as raphael. Board data: stock bdwlan.bin (board_id 0xff).
++
++---
++diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++index 9f780f446..bafd6ce3a 100644
++--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++@@ -659,3 +659,29 @@ &mdss_dsi0_phy {
++ 	vdds-supply = <&vreg_l5a_0p875>;
++ 	status = "okay";
++ };
+++
+++/* Firmware is used in place from the modem/vendor partitions (msm-firmware-loader) */
+++&remoteproc_adsp {
+++	firmware-name = "adsp.mdt";
+++	status = "okay";
+++};
+++
+++&remoteproc_cdsp {
+++	firmware-name = "cdsp.mdt";
+++	status = "okay";
+++};
+++
+++&remoteproc_mpss {
+++	firmware-name = "modem.mdt";
+++	status = "okay";
+++};
+++
+++&wifi {
+++	vdd-0.8-cx-mx-supply = <&vreg_l1a_0p75>;
+++	vdd-1.8-xo-supply = <&vreg_l7a_1p8>;
+++	vdd-1.3-rfa-supply = <&vreg_l2c_1p3>;
+++	vdd-3.3-ch0-supply = <&vreg_l11c_3p3>;
+++	vdd-3.3-ch1-supply = <&vreg_l10c_3p3>;
+++	qcom,calibration-variant = "xiaomi_cepheus";
+++	status = "okay";
+++};
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+index da5e5ce3ac..500bbd3116 100644
+--- a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
++++ b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+@@ -3,7 +3,7 @@ maintainer="Pan Ortiz <panjeoc@proton.me>"
+ _flavor="postmarketos-qcom-sm8150"
+ pkgname=linux-$_flavor
+ pkgver=7.0.0
+-pkgrel=1
++pkgrel=2
+ pkgdesc="Mainline Kernel fork for SM8150 devices"
+ arch="aarch64"
+ _carch="arm64"
+@@ -39,6 +39,7 @@ source="
+ 	0002-libbpf-Fix-UAF-in-strset__add_str.patch
+ 	0003-xiaomi-vayu-fix-otg.patch
+ 	0004-cepheus-ufs-vcc-and-display.patch
++	0005-cepheus-remoteprocs-wifi.patch
+ "
+ builddir="$srcdir/linux-$_tag"
+ 
+@@ -93,4 +94,5 @@ c2513e51494325fcff8eb5cf431ffa095d88abcedc18fee81b79bda47516bed359cfdf147ae9e92d
+ a75ad54e77870170a1e33bd8ec68bfa64542791f1c9383da6335f0e7f5da14f10e9fe267d58a3ade8e04d7eb3d82e5ca2354b52b2fa0d363c9bb6d5bec860ba8  0002-libbpf-Fix-UAF-in-strset__add_str.patch
+ 7b62e50cc3277361bd941e2aa63ccc9922aaf86deec3519c584eee5f04f059c0a812e6a5f51575928270bf749860d5707da29b1b0a2440e8918c7cf8c37e1bd3  0003-xiaomi-vayu-fix-otg.patch
+ cbed3fac96e21d0dead253b86eceff0f9b92c6326bf187e548e615e042786732408e28a69a3c5037e97eacab7f30d1df7b33d1eb9a670066644d7b5777187119  0004-cepheus-ufs-vcc-and-display.patch
++cd06618bd1e0d7c7b45caa8b848416011d7a9728e4395aff6d1e8864a5b182f65d1be1aceb82c61872dea11970975a35253572171a06a1ed7de2ddee9d05c90a  0005-cepheus-remoteprocs-wifi.patch
+ "
+-- 
+2.56.0
+

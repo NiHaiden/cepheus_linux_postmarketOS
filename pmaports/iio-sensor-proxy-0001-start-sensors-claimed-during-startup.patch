@@ -1,0 +1,15 @@
+--- a/src/iio-sensor-proxy.c
++++ b/src/iio-sensor-proxy.c
+@@ -779,6 +779,12 @@
+ 		}
+ 
+ 		DEVICE_FOR_TYPE(i) = sensor_device;
++
++		/* A client may have claimed the sensor while driver_open() was
++		 * running (e.g. SSC drivers iterate the main loop), when there
++		 * was no device to start yet. Start it now. */
++		if (g_hash_table_size (data->clients[i]) > 0)
++			driver_set_polling (sensor_device, TRUE);
+ 	}
+ 
+ 	if (!any_sensors_left (data))

@@ -1,0 +1,38 @@
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+index ba0362d8a..ca67cfc72 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+@@ -64,6 +64,15 @@ framebuffer: framebuffer@9c000000 {
+ 		};
+ 	};
+ 
++	/* downstream cepheus-sm8150.dtsi: batterydata-F1-*-3300mah, fv-max-uv 4400000, fg-cutoff-voltage 3400 */
++	battery: battery {
++		compatible = "simple-battery";
++		charge-full-design-microamp-hours = <3300000>;
++		voltage-min-design-microvolt = <3400000>;
++		/* qcom_smbx programs this as the float (max charge) voltage */
++		voltage-max-design-microvolt = <4400000>;
++	};
++
+ 	disp_vci_vreg: disp-vci-regulator {
+ 		compatible = "regulator-fixed";
+ 		regulator-name = "disp_vci_vreg";
+@@ -540,6 +549,17 @@ &qupv3_id_2 {
+ 	status = "okay";
+ };
+ 
++&pm8150b_charger {
++	monitored-battery = <&battery>;
++	status = "okay";
++};
++
++&pm8150b_fg {
++	monitored-battery = <&battery>;
++	power-supplies = <&pm8150b_charger>;
++	status = "okay";
++};
++
+ &pon {
+ 	mode-recovery = <0x1>;
+ 	mode-bootloader = <0x2>;

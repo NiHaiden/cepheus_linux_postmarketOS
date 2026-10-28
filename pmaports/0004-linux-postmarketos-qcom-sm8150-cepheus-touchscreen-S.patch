@@ -1,0 +1,341 @@
+From ac6e492e39d6597a5481524f4608d3943a7c1da6 Mon Sep 17 00:00:00 2001
+From: cepheus <cepheus@local>
+Date: Wed, 28 Oct 2026 15:56:47 +0000
+Subject: [PATCH 4/7] linux-postmarketos-qcom-sm8150: cepheus: touchscreen (ST
+ FTM5 over I2C)
+
+---
+ .../0007-cepheus-touchscreen-ftm5-i2c.patch   | 272 ++++++++++++++++++
+ .../linux-postmarketos-qcom-sm8150/APKBUILD   |   6 +-
+ .../config-postmarketos-qcom-sm8150.aarch64   |   1 +
+ 3 files changed, 277 insertions(+), 2 deletions(-)
+ create mode 100644 device/testing/linux-postmarketos-qcom-sm8150/0007-cepheus-touchscreen-ftm5-i2c.patch
+
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/0007-cepheus-touchscreen-ftm5-i2c.patch b/device/testing/linux-postmarketos-qcom-sm8150/0007-cepheus-touchscreen-ftm5-i2c.patch
+new file mode 100644
+index 0000000000..45e95b1ad0
+--- /dev/null
++++ b/device/testing/linux-postmarketos-qcom-sm8150/0007-cepheus-touchscreen-ftm5-i2c.patch
+@@ -0,0 +1,272 @@
++diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++index 470c77316..ba0362d8a 100644
++--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++@@ -74,6 +74,16 @@ disp_vci_vreg: disp-vci-regulator {
++ 		regulator-boot-on;
++ 	};
++ 
+++	/* touch_vddio_vreg in downstream cepheus-sm8150.dtsi */
+++	touch_vddio_vreg: touch-vddio-regulator {
+++		compatible = "regulator-fixed";
+++		regulator-name = "touch_vddio_vreg";
+++		gpio = <&tlmm 84 GPIO_ACTIVE_HIGH>;
+++		startup-delay-us = <4000>;
+++		enable-active-high;
+++		regulator-boot-on;
+++	};
+++
++ 	gpio_keys {
++ 		compatible = "gpio-keys";
++ 		pinctrl-names = "default";
++@@ -526,6 +536,10 @@ vdd_boost_en_pin: vdd-boost-en-pin {
++ 	};
++ };
++ 
+++&qupv3_id_2 {
+++	status = "okay";
+++};
+++
++ &pon {
++ 	mode-recovery = <0x1>;
++ 	mode-bootloader = <0x2>;
++@@ -561,6 +575,13 @@ panel_te_pin: panel-te-state {
++ 		bias-pull-down;
++ 	};
++ 
+++	ts_active: ts-active-state {
+++		pins = "gpio122", "gpio12";
+++		function = "gpio";
+++		drive-strength = <8>;
+++		bias-pull-up;
+++	};
+++
++ 	ai_key_pin_a: ai-key-pin-active {
++ 		pins = "gpio97";
++ 		function = "gpio";
++@@ -664,6 +685,39 @@ &gmu {
++ 	status = "okay";
++ };
++ 
+++&gpi_dma2 {
+++	status = "okay";
+++};
+++
+++&i2c17 {
+++	clock-frequency = <400000>;
+++	status = "okay";
+++
+++	/* ST FTM5, downstream fts@49 in cepheus-sm8150.dtsi; driver: fts_touch (ftm5_i2c) */
+++	touchscreen@49 {
+++		compatible = "st,fts";
+++		reg = <0x49>;
+++		interrupt-parent = <&tlmm>;
+++		interrupts = <122 IRQ_TYPE_LEVEL_LOW>;
+++
+++		vdd-supply = <&touch_vddio_vreg>;
+++		avdd-supply = <&vreg_l1c_1p8>;
+++
+++		pinctrl-names = "default";
+++		pinctrl-0 = <&ts_active>;
+++
+++		st,irq-gpio = <&tlmm 122 GPIO_ACTIVE_HIGH>;
+++		st,reset-gpio = <&tlmm 12 GPIO_ACTIVE_HIGH>;
+++		st,regulator_dvdd = "vdd";
+++		st,regulator_avdd = "avdd";
+++		st,max-coords = <1079 2339>;
+++		/* the IC keeps its own firmware; no .ftb on this phone */
+++		st,disable-auto-fw-update;
+++		/* Xiaomi's FW keeps MP flag 00 and rejects saving it; AFE versions already match */
+++		st,ignore-mp-flag;
+++	};
+++};
+++
++ &gpu {
++ 	status = "okay";
++ };
++diff --git a/drivers/input/touchscreen/fts_touch/Kconfig b/drivers/input/touchscreen/fts_touch/Kconfig
++index 188590b21..c00643fab 100644
++--- a/drivers/input/touchscreen/fts_touch/Kconfig
+++++ b/drivers/input/touchscreen/fts_touch/Kconfig
++@@ -31,4 +31,12 @@ config TOUCHSCREEN_STM_FTS_DOWNSTREAM_SPI
++ 
++ endchoice
++ 
+++config TOUCHSCREEN_STM_FTS_DOWNSTREAM_I2C_EXTRA
+++	tristate "Additionally build an I2C variant (ftm5_i2c module)"
+++	depends on TOUCHSCREEN_STM_FTS_DOWNSTREAM_SPI && I2C && m
+++	help
+++	  Build the driver a second time, for FTM5 controllers on I2C
+++	  (e.g. Xiaomi Mi 9), so one kernel serves SPI and I2C devices.
+++	  The module will be called ftm5_i2c.
+++
++ endif # TOUCHSCREEN_STM_FTS_DOWNSTREAM
++diff --git a/drivers/input/touchscreen/fts_touch/Makefile b/drivers/input/touchscreen/fts_touch/Makefile
++index e3ffdf7ca..be9603132 100644
++--- a/drivers/input/touchscreen/fts_touch/Makefile
+++++ b/drivers/input/touchscreen/fts_touch/Makefile
++@@ -3,4 +3,5 @@ ftm5-objs = fts.o fts_proc.o
++ ftm5-objs += \
++ 	fts_lib/ftsCompensation.o fts_lib/ftsCore.o fts_lib/ftsError.o \
++ 	fts_lib/ftsFrame.o fts_lib/ftsIO.o fts_lib/ftsTest.o fts_lib/ftsTime.o \
++-	fts_lib/ftsTool.o fts_lib/ftsFlash.o fts_lib/ftsGesture.o
++\ No newline at end of file
+++	fts_lib/ftsTool.o fts_lib/ftsFlash.o fts_lib/ftsGesture.o
+++obj-$(CONFIG_TOUCHSCREEN_STM_FTS_DOWNSTREAM_I2C_EXTRA)	+= i2c/
++diff --git a/drivers/input/touchscreen/fts_touch/fts.c b/drivers/input/touchscreen/fts_touch/fts.c
++index 0c9f73132..c29000bd2 100644
++--- a/drivers/input/touchscreen/fts_touch/fts.c
+++++ b/drivers/input/touchscreen/fts_touch/fts.c
++@@ -4269,7 +4269,8 @@ static int fts_fw_update(struct fts_ts_info *info)
++ #if defined(PRE_SAVED_METHOD) || defined(COMPUTE_INIT_METHOD)
++ 		if ((systemInfo.u8_cfgAfeVer != systemInfo.u8_cxAfeVer)
++ #ifdef COMPUTE_INIT_METHOD
++-			|| ((systemInfo.u8_mpFlag != MP_FLAG_BOOT) &&
+++			|| (!info->board->ignore_mp_flag &&
+++				(systemInfo.u8_mpFlag != MP_FLAG_BOOT) &&
++ 				(systemInfo.u8_mpFlag != MP_FLAG_FACTORY))
++ #endif
++ 			) {
++@@ -5245,6 +5246,8 @@ static int parse_dt(struct device *dev, struct fts_hw_platform_data *bdata)
++ 		bdata->auto_fw_update = false;
++ 		pr_info("Automatic firmware update disabled\n");
++ 	}
+++	/* Firmwares that never store an MP flag would get a full panel init on every boot */
+++	bdata->ignore_mp_flag = of_property_read_bool(np, "st,ignore-mp-flag");
++ #ifdef CONFIG_TOUCHSCREEN_HEATMAP
++ 	bdata->heatmap_mode_full_init = false;
++ 	if (of_property_read_bool(np, "st,heatmap_mode_full")) {
++@@ -5278,7 +5281,7 @@ static int parse_dt(struct device *dev, struct fts_hw_platform_data *bdata)
++   * to the linux input subsystem etc.
++   */
++ #ifdef CONFIG_TOUCHSCREEN_STM_FTS_DOWNSTREAM_I2C
++-static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
+++static int fts_probe(struct i2c_client *client)
++ {
++ #else
++ static int fts_probe(struct spi_device *client)
++diff --git a/drivers/input/touchscreen/fts_touch/fts.h b/drivers/input/touchscreen/fts_touch/fts.h
++index 4459782f3..06bbdc184 100644
++--- a/drivers/input/touchscreen/fts_touch/fts.h
+++++ b/drivers/input/touchscreen/fts_touch/fts.h
++@@ -289,6 +289,7 @@ struct fts_hw_platform_data {
++ 	int x_axis_max;
++ 	int y_axis_max;
++ 	bool auto_fw_update;
+++	bool ignore_mp_flag;
++ #ifdef CONFIG_TOUCHSCREEN_HEATMAP
++ 	bool heatmap_mode_full_init;
++ #endif
++diff --git a/drivers/input/touchscreen/fts_touch/fts_proc.c b/drivers/input/touchscreen/fts_touch/fts_proc.c
++index bec30f95a..fd0852fc7 100644
++--- a/drivers/input/touchscreen/fts_touch/fts_proc.c
+++++ b/drivers/input/touchscreen/fts_touch/fts_proc.c
++@@ -1095,10 +1095,10 @@ static ssize_t fts_driver_test_write(struct file *file, const char __user *buf,
++ 
++ #ifdef CONFIG_TOUCHSCREEN_STM_FTS_DOWNSTREAM_I2C
++ 			fileSize |= 0x00200000;
++-#endif
++-
+++#else
++ 			if (getClient() && (getClient()->mode & SPI_3WIRE) == 0)
++ 				fileSize |= 0x00400000;
+++#endif
++ 
++ #ifdef PHONE_KEY	/* it is a feature enabled in the config of the chip */
++ 			fileSize |= 0x00000100;
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/Makefile b/drivers/input/touchscreen/fts_touch/i2c/Makefile
++new file mode 100644
++index 000000000..72ada21b1
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/Makefile
++@@ -0,0 +1,6 @@
+++# Second build of ../ for FTM5 controllers on I2C (the parent builds the SPI variant).
+++# The sources select the bus with #ifdef CONFIG_TOUCHSCREEN_STM_FTS_DOWNSTREAM_I2C.
+++ccflags-y += -DCONFIG_TOUCHSCREEN_STM_FTS_DOWNSTREAM_I2C
+++obj-$(CONFIG_TOUCHSCREEN_STM_FTS_DOWNSTREAM_I2C_EXTRA) += ftm5_i2c.o
+++ftm5_i2c-objs := fts.o fts_proc.o ftsCompensation.o ftsCore.o ftsError.o ftsFrame.o \
+++	ftsIO.o ftsTest.o ftsTime.o ftsTool.o ftsFlash.o ftsGesture.o
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/fts.c b/drivers/input/touchscreen/fts_touch/i2c/fts.c
++new file mode 100644
++index 000000000..fd5e81d27
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/fts.c
++@@ -0,0 +1 @@
+++#include "../fts.c"
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/ftsCompensation.c b/drivers/input/touchscreen/fts_touch/i2c/ftsCompensation.c
++new file mode 100644
++index 000000000..f6478d8f9
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/ftsCompensation.c
++@@ -0,0 +1 @@
+++#include "../fts_lib/ftsCompensation.c"
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/ftsCore.c b/drivers/input/touchscreen/fts_touch/i2c/ftsCore.c
++new file mode 100644
++index 000000000..2e4574b1e
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/ftsCore.c
++@@ -0,0 +1 @@
+++#include "../fts_lib/ftsCore.c"
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/ftsError.c b/drivers/input/touchscreen/fts_touch/i2c/ftsError.c
++new file mode 100644
++index 000000000..222676504
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/ftsError.c
++@@ -0,0 +1 @@
+++#include "../fts_lib/ftsError.c"
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/ftsFlash.c b/drivers/input/touchscreen/fts_touch/i2c/ftsFlash.c
++new file mode 100644
++index 000000000..e7cf8abd1
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/ftsFlash.c
++@@ -0,0 +1 @@
+++#include "../fts_lib/ftsFlash.c"
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/ftsFrame.c b/drivers/input/touchscreen/fts_touch/i2c/ftsFrame.c
++new file mode 100644
++index 000000000..31c434396
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/ftsFrame.c
++@@ -0,0 +1 @@
+++#include "../fts_lib/ftsFrame.c"
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/ftsGesture.c b/drivers/input/touchscreen/fts_touch/i2c/ftsGesture.c
++new file mode 100644
++index 000000000..79ca9c99a
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/ftsGesture.c
++@@ -0,0 +1 @@
+++#include "../fts_lib/ftsGesture.c"
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/ftsIO.c b/drivers/input/touchscreen/fts_touch/i2c/ftsIO.c
++new file mode 100644
++index 000000000..e5c997968
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/ftsIO.c
++@@ -0,0 +1 @@
+++#include "../fts_lib/ftsIO.c"
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/ftsTest.c b/drivers/input/touchscreen/fts_touch/i2c/ftsTest.c
++new file mode 100644
++index 000000000..699053e39
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/ftsTest.c
++@@ -0,0 +1 @@
+++#include "../fts_lib/ftsTest.c"
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/ftsTime.c b/drivers/input/touchscreen/fts_touch/i2c/ftsTime.c
++new file mode 100644
++index 000000000..fafdfa671
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/ftsTime.c
++@@ -0,0 +1 @@
+++#include "../fts_lib/ftsTime.c"
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/ftsTool.c b/drivers/input/touchscreen/fts_touch/i2c/ftsTool.c
++new file mode 100644
++index 000000000..b547eb9c4
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/ftsTool.c
++@@ -0,0 +1 @@
+++#include "../fts_lib/ftsTool.c"
++diff --git a/drivers/input/touchscreen/fts_touch/i2c/fts_proc.c b/drivers/input/touchscreen/fts_touch/i2c/fts_proc.c
++new file mode 100644
++index 000000000..05d5e25df
++--- /dev/null
+++++ b/drivers/input/touchscreen/fts_touch/i2c/fts_proc.c
++@@ -0,0 +1 @@
+++#include "../fts_proc.c"
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+index ce4b2571aa..7e65be31c8 100644
+--- a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
++++ b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+@@ -3,7 +3,7 @@ maintainer="Pan Ortiz <panjeoc@proton.me>"
+ _flavor="postmarketos-qcom-sm8150"
+ pkgname=linux-$_flavor
+ pkgver=7.0.0
+-pkgrel=3
++pkgrel=4
+ pkgdesc="Mainline Kernel fork for SM8150 devices"
+ arch="aarch64"
+ _carch="arm64"
+@@ -41,6 +41,7 @@ source="
+ 	0004-cepheus-ufs-vcc-and-display.patch
+ 	0005-cepheus-remoteprocs-wifi.patch
+ 	0006-cepheus-gpu.patch
++	0007-cepheus-touchscreen-ftm5-i2c.patch
+ "
+ builddir="$srcdir/linux-$_tag"
+ 
+@@ -90,11 +91,12 @@ package() {
+ 
+ sha512sums="
+ c1bdb11a9ad8be826ec5781e239c60ad92d6bb3a2d6b0adff8ef1f1e334bc6889ab91683257691ba3155f976011cd37969be379d509c9f928f4f85753e95635e  linux-v7.0.0-sm8150.tar.gz
+-c2513e51494325fcff8eb5cf431ffa095d88abcedc18fee81b79bda47516bed359cfdf147ae9e92d255961128daf35eddef5577ae0f319729c4d002bcbb5f836  config-postmarketos-qcom-sm8150.aarch64
++fb70f1898267e93a39c818da24fb2b0670dca76fb5c49680274417d9ff63ab15ecbe05e63db42c414cef36256a44a02f064e123012b2f461315d107aa12685c7  config-postmarketos-qcom-sm8150.aarch64
+ 316decafef4528b3d8fa9ce1f2c1588048ae0a99adf088d61372d84ff95ae7bf58e5cc0d03d73201f1735f3d523468d98113ac575714930229434a46385a5c3d  0001-enable-ufs.patch
+ a75ad54e77870170a1e33bd8ec68bfa64542791f1c9383da6335f0e7f5da14f10e9fe267d58a3ade8e04d7eb3d82e5ca2354b52b2fa0d363c9bb6d5bec860ba8  0002-libbpf-Fix-UAF-in-strset__add_str.patch
+ 7b62e50cc3277361bd941e2aa63ccc9922aaf86deec3519c584eee5f04f059c0a812e6a5f51575928270bf749860d5707da29b1b0a2440e8918c7cf8c37e1bd3  0003-xiaomi-vayu-fix-otg.patch
+ cbed3fac96e21d0dead253b86eceff0f9b92c6326bf187e548e615e042786732408e28a69a3c5037e97eacab7f30d1df7b33d1eb9a670066644d7b5777187119  0004-cepheus-ufs-vcc-and-display.patch
+ cd06618bd1e0d7c7b45caa8b848416011d7a9728e4395aff6d1e8864a5b182f65d1be1aceb82c61872dea11970975a35253572171a06a1ed7de2ddee9d05c90a  0005-cepheus-remoteprocs-wifi.patch
+ 970d085a11202432b7fed5051a9f024575d3d5bc031044768828c28651a1b02f52af3feb68104d29799826399149a2491c1c76999beec8526092cb7c5240deb3  0006-cepheus-gpu.patch
++d88b27d002ef59b68ef79490899ef0a738016a13fcec492195b68761112a394b38c7632fa5a42652f168caad655bc416cbfa9723b3c23ece11bb870f19ee5557  0007-cepheus-touchscreen-ftm5-i2c.patch
+ "
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/config-postmarketos-qcom-sm8150.aarch64 b/device/testing/linux-postmarketos-qcom-sm8150/config-postmarketos-qcom-sm8150.aarch64
+index c46aabacff..cfdbbeb160 100644
+--- a/device/testing/linux-postmarketos-qcom-sm8150/config-postmarketos-qcom-sm8150.aarch64
++++ b/device/testing/linux-postmarketos-qcom-sm8150/config-postmarketos-qcom-sm8150.aarch64
+@@ -3016,6 +3016,7 @@ CONFIG_TOUCHSCREEN_NT36672_SPI=m
+ CONFIG_TOUCHSCREEN_STM_FTS_DOWNSTREAM=y
+ # CONFIG_TOUCHSCREEN_STM_FTS_DOWNSTREAM_I2C is not set
+ CONFIG_TOUCHSCREEN_STM_FTS_DOWNSTREAM_SPI=y
++CONFIG_TOUCHSCREEN_STM_FTS_DOWNSTREAM_I2C_EXTRA=m
+ # CONFIG_TOUCHSCREEN_ADS7846 is not set
+ # CONFIG_TOUCHSCREEN_AD7877 is not set
+ # CONFIG_TOUCHSCREEN_AD7879 is not set
+-- 
+2.56.0
+

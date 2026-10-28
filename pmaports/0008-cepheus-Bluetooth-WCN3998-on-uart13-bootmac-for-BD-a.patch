@@ -1,0 +1,209 @@
+From 9fe9dc96ead9d3ba6ad70c21252038ec3286f1bb Mon Sep 17 00:00:00 2001
+From: cepheus <cepheus@local>
+Date: Wed, 28 Oct 2026 19:47:29 +0000
+Subject: [PATCH] cepheus: Bluetooth (WCN3998 on uart13, bootmac for BD
+ address); kernel localversion -sm8150-aurora
+
+---
+ .../90-bootmac-wifi.rules                     |  2 +
+ device/testing/device-xiaomi-cepheus/APKBUILD |  7 +-
+ .../0011-cepheus-bluetooth.patch              | 86 +++++++++++++++++++
+ .../linux-postmarketos-qcom-sm8150/APKBUILD   |  6 +-
+ .../config-postmarketos-qcom-sm8150.aarch64   |  2 +-
+ 5 files changed, 98 insertions(+), 5 deletions(-)
+ create mode 100644 device/testing/device-xiaomi-cepheus/90-bootmac-wifi.rules
+ create mode 100644 device/testing/linux-postmarketos-qcom-sm8150/0011-cepheus-bluetooth.patch
+
+diff --git a/device/testing/device-xiaomi-cepheus/90-bootmac-wifi.rules b/device/testing/device-xiaomi-cepheus/90-bootmac-wifi.rules
+new file mode 100644
+index 0000000000..84d6c01da0
+--- /dev/null
++++ b/device/testing/device-xiaomi-cepheus/90-bootmac-wifi.rules
+@@ -0,0 +1,2 @@
++# Masks bootmac's wlan rule: the WCN3990 Wi-Fi already gets its real MAC from the modem.
++# bootmac is only wanted for Bluetooth (the controller has no BD address of its own).
+diff --git a/device/testing/device-xiaomi-cepheus/APKBUILD b/device/testing/device-xiaomi-cepheus/APKBUILD
+index 22a193984d..d1d2040ddd 100644
+--- a/device/testing/device-xiaomi-cepheus/APKBUILD
++++ b/device/testing/device-xiaomi-cepheus/APKBUILD
+@@ -3,19 +3,20 @@ maintainer="Alexey Minnekhanov <alexeymin@postmarketos.org>"
+ pkgname=device-xiaomi-cepheus
+ pkgdesc="Xiaomi Mi 9"
+ pkgver=7
+-pkgrel=0
++pkgrel=1
+ url="https://postmarketos.org"
+ license="MIT"
+ arch="aarch64"
+ options="!check !archcheck"
+ depends="
+ 	linux-postmarketos-qcom-sm8150
++	bootmac
+ 	mkbootimg
+ 	postmarketos-base
+ "
+ makedepends="devicepkg-dev"
+ subpackages="$pkgname-nonfree-firmware:nonfree_firmware"
+-source="deviceinfo kernel-cmdline.conf"
++source="deviceinfo kernel-cmdline.conf 90-bootmac-wifi.rules"
+ 
+ build() {
+ 	devicepkg_build $startdir $pkgname
+@@ -23,6 +24,7 @@ build() {
+ 
+ package() {
+ 	devicepkg_package $startdir $pkgname
++	install -Dm644 "$srcdir"/90-bootmac-wifi.rules -t "$pkgdir"/etc/udev/rules.d/
+ }
+ 
+ nonfree_firmware() {
+@@ -34,4 +36,5 @@ nonfree_firmware() {
+ sha512sums="
+ ffc4240164815cba73fc24adb5f959d9aed7a99726b335bb38aaf377645986ebb28e678eaa5ade4b346a902f22724bbbb89f3c2a167e0a5599adbcddbd46cb10  deviceinfo
+ 42d3a47ebc8109fc3bf1ac03ddae6254ca9bc7b0a64f58cfe652b30a40bdceddf09fd65a46fddeda0138d8b52dbccc2425da06f7705373f4a4ab0babaa35b150  kernel-cmdline.conf
++2297f9bf350893e9f4cca12aeee8e1f1120d56a24fe01e324728148be164a833716d81f3b576965fe234a233f15513a003b718cc80484bb990e47a3a74cff2c7  90-bootmac-wifi.rules
+ "
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/0011-cepheus-bluetooth.patch b/device/testing/linux-postmarketos-qcom-sm8150/0011-cepheus-bluetooth.patch
+new file mode 100644
+index 0000000000..17c1b351d0
+--- /dev/null
++++ b/device/testing/linux-postmarketos-qcom-sm8150/0011-cepheus-bluetooth.patch
+@@ -0,0 +1,86 @@
++diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++index 4b48ee75c..678d308cb 100644
++--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++@@ -39,7 +39,9 @@ / {
++ 	compatible = "xiaomi,cepheus", "qcom,sm8150";
++ 
++ 	aliases {
+++		bluetooth0 = &bluetooth;
++ 		serial0 = &uart2;
+++		hsuart0 = &uart13;
++ 		display0 = &framebuffer;
++ 	};
++ 
++@@ -719,6 +721,46 @@ ts_active: ts-active-state {
++ 		bias-pull-up;
++ 	};
++ 
+++	/* downstream qupv3_se13_4uart (sm8150-pinctrl.dtsi) */
+++	qup_uart13_default: qup-uart13-default-state {
+++		cts-rx-pins {
+++			pins = "gpio43", "gpio46";
+++			function = "qup13";
+++			drive-strength = <2>;
+++			bias-disable;
+++		};
+++
+++		rts-pins {
+++			pins = "gpio44";
+++			function = "qup13";
+++			drive-strength = <2>;
+++			bias-pull-down;
+++		};
+++
+++		tx-pins {
+++			pins = "gpio45";
+++			function = "qup13";
+++			drive-strength = <2>;
+++			bias-pull-up;
+++		};
+++	};
+++
+++	qup_uart13_sleep: qup-uart13-sleep-state {
+++		cts-rts-pins {
+++			pins = "gpio43", "gpio44";
+++			function = "gpio";
+++			drive-strength = <2>;
+++			bias-pull-down;
+++		};
+++
+++		tx-rx-pins {
+++			pins = "gpio45", "gpio46";
+++			function = "gpio";
+++			drive-strength = <2>;
+++			bias-pull-up;
+++		};
+++	};
+++
++ 	ai_key_pin_a: ai-key-pin-active {
++ 		pins = "gpio97";
++ 		function = "gpio";
++@@ -732,6 +774,24 @@ &uart2 {
++ 	status = "okay";
++ };
++ 
+++&uart13 {
+++	pinctrl-0 = <&qup_uart13_default>;
+++	pinctrl-1 = <&qup_uart13_sleep>;
+++	pinctrl-names = "default", "sleep";
+++
+++	status = "okay";
+++
+++	/* WCN3998, same as raphael; downstream bt_wcn3990 supplies: core l7a, pa l2c, ldo l11c */
+++	bluetooth: bluetooth {
+++		compatible = "qcom,wcn3998-bt";
+++		vddio-supply = <&vreg_l7a_1p8>;
+++		vddxo-supply = <&vreg_l7a_1p8>;
+++		vddrf-supply = <&vreg_l2c_1p3>;
+++		vddch0-supply = <&vreg_l11c_3p3>;
+++		max-speed = <3200000>;
+++	};
+++};
+++
++ &usb_1 {
++ 	status = "okay";
++ };
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+index d8bad86408..395ab7a343 100644
+--- a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
++++ b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+@@ -3,7 +3,7 @@ maintainer="Pan Ortiz <panjeoc@proton.me>"
+ _flavor="postmarketos-qcom-sm8150"
+ pkgname=linux-$_flavor
+ pkgver=7.0.0
+-pkgrel=7
++pkgrel=8
+ pkgdesc="Mainline Kernel fork for SM8150 devices"
+ arch="aarch64"
+ _carch="arm64"
+@@ -45,6 +45,7 @@ source="
+ 	0008-cepheus-battery.patch
+ 	0009-cepheus-slpi-sensors.patch
+ 	0010-cepheus-audio-speaker.patch
++	0011-cepheus-bluetooth.patch
+ "
+ builddir="$srcdir/linux-$_tag"
+ 
+@@ -94,7 +95,7 @@ package() {
+ 
+ sha512sums="
+ c1bdb11a9ad8be826ec5781e239c60ad92d6bb3a2d6b0adff8ef1f1e334bc6889ab91683257691ba3155f976011cd37969be379d509c9f928f4f85753e95635e  linux-v7.0.0-sm8150.tar.gz
+-fb70f1898267e93a39c818da24fb2b0670dca76fb5c49680274417d9ff63ab15ecbe05e63db42c414cef36256a44a02f064e123012b2f461315d107aa12685c7  config-postmarketos-qcom-sm8150.aarch64
++17591db8fa80ab3ee9c9edeb8b0a8344448ce785551d1767ace08382022cc87bfc090fac711ef5032460a297664d72544a936b9bd4d79c501dcdc8203c732827  config-postmarketos-qcom-sm8150.aarch64
+ 316decafef4528b3d8fa9ce1f2c1588048ae0a99adf088d61372d84ff95ae7bf58e5cc0d03d73201f1735f3d523468d98113ac575714930229434a46385a5c3d  0001-enable-ufs.patch
+ a75ad54e77870170a1e33bd8ec68bfa64542791f1c9383da6335f0e7f5da14f10e9fe267d58a3ade8e04d7eb3d82e5ca2354b52b2fa0d363c9bb6d5bec860ba8  0002-libbpf-Fix-UAF-in-strset__add_str.patch
+ 7b62e50cc3277361bd941e2aa63ccc9922aaf86deec3519c584eee5f04f059c0a812e6a5f51575928270bf749860d5707da29b1b0a2440e8918c7cf8c37e1bd3  0003-xiaomi-vayu-fix-otg.patch
+@@ -105,4 +106,5 @@ d88b27d002ef59b68ef79490899ef0a738016a13fcec492195b68761112a394b38c7632fa5a42652
+ 8e40f3b0c9f6de2cf9875b47391b609183180d37f462a5746a5f46579d4ce69ee30f01bd86430453cf1d8041540829d0acc3cc9acd5899f1c03fee6d9d4bf87f  0008-cepheus-battery.patch
+ 75821be2a73a843e49a0c2b5aee2b3b8b29970ff1e2343196e86f7dd4003cee78e6e0075723a1751c687187d7996c6ed13a38befc7aef8d186a25bda3e8ff709  0009-cepheus-slpi-sensors.patch
+ b97a773966335e4805262da62a87a3504a912eef848e29f2e71dc289b51a0f53b9d99255ee39aa4722522d6fc72e8b13f4a7112fc2119c5eabd8a0626150f1af  0010-cepheus-audio-speaker.patch
++a3e8376a84cffd170942ec1757bb30e3270afd9fc47131c082bdd45ba6f0f5ed1cc77d65f9aed704f0832ae585fbca113db8fa81c9c47905b9b98e929d94fb66  0011-cepheus-bluetooth.patch
+ "
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/config-postmarketos-qcom-sm8150.aarch64 b/device/testing/linux-postmarketos-qcom-sm8150/config-postmarketos-qcom-sm8150.aarch64
+index cfdbbeb160..3f9721b10a 100644
+--- a/device/testing/linux-postmarketos-qcom-sm8150/config-postmarketos-qcom-sm8150.aarch64
++++ b/device/testing/linux-postmarketos-qcom-sm8150/config-postmarketos-qcom-sm8150.aarch64
+@@ -34,7 +34,7 @@ CONFIG_THREAD_INFO_IN_TASK=y
+ CONFIG_INIT_ENV_ARG_LIMIT=32
+ # CONFIG_COMPILE_TEST is not set
+ # CONFIG_WERROR is not set
+-CONFIG_LOCALVERSION="-sm8150"
++CONFIG_LOCALVERSION="-sm8150-aurora"
+ CONFIG_LOCALVERSION_AUTO=y
+ CONFIG_BUILD_SALT=""
+ CONFIG_HAVE_KERNEL_GZIP=y
+-- 
+2.56.0
+

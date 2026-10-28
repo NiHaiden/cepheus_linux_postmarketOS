@@ -1,0 +1,72 @@
+From 59eff992bdb66547efc68d1375c1b69249f57959 Mon Sep 17 00:00:00 2001
+From: cepheus <cepheus@local>
+Date: Wed, 28 Oct 2026 15:15:52 +0000
+Subject: [PATCH 3/7] linux-postmarketos-qcom-sm8150: cepheus: enable GPU
+ (Adreno 640)
+
+---
+ .../0006-cepheus-gpu.patch                    | 24 +++++++++++++++++++
+ .../linux-postmarketos-qcom-sm8150/APKBUILD   |  4 +++-
+ 2 files changed, 27 insertions(+), 1 deletion(-)
+ create mode 100644 device/testing/linux-postmarketos-qcom-sm8150/0006-cepheus-gpu.patch
+
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/0006-cepheus-gpu.patch b/device/testing/linux-postmarketos-qcom-sm8150/0006-cepheus-gpu.patch
+new file mode 100644
+index 0000000000..60a9711b7e
+--- /dev/null
++++ b/device/testing/linux-postmarketos-qcom-sm8150/0006-cepheus-gpu.patch
+@@ -0,0 +1,24 @@
++diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++index bafd6ce3a..470c77316 100644
++--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++@@ -660,6 +660,19 @@ &mdss_dsi0_phy {
++ 	status = "okay";
++ };
++ 
+++&gmu {
+++	status = "okay";
+++};
+++
+++&gpu {
+++	status = "okay";
+++};
+++
+++&gpu_zap_shader {
+++	/* msm-firmware-loader exposes the vendor blobs flat */
+++	firmware-name = "a640_zap.mdt";
+++};
+++
++ /* Firmware is used in place from the modem/vendor partitions (msm-firmware-loader) */
++ &remoteproc_adsp {
++ 	firmware-name = "adsp.mdt";
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+index 500bbd3116..ce4b2571aa 100644
+--- a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
++++ b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+@@ -3,7 +3,7 @@ maintainer="Pan Ortiz <panjeoc@proton.me>"
+ _flavor="postmarketos-qcom-sm8150"
+ pkgname=linux-$_flavor
+ pkgver=7.0.0
+-pkgrel=2
++pkgrel=3
+ pkgdesc="Mainline Kernel fork for SM8150 devices"
+ arch="aarch64"
+ _carch="arm64"
+@@ -40,6 +40,7 @@ source="
+ 	0003-xiaomi-vayu-fix-otg.patch
+ 	0004-cepheus-ufs-vcc-and-display.patch
+ 	0005-cepheus-remoteprocs-wifi.patch
++	0006-cepheus-gpu.patch
+ "
+ builddir="$srcdir/linux-$_tag"
+ 
+@@ -95,4 +96,5 @@ a75ad54e77870170a1e33bd8ec68bfa64542791f1c9383da6335f0e7f5da14f10e9fe267d58a3ade
+ 7b62e50cc3277361bd941e2aa63ccc9922aaf86deec3519c584eee5f04f059c0a812e6a5f51575928270bf749860d5707da29b1b0a2440e8918c7cf8c37e1bd3  0003-xiaomi-vayu-fix-otg.patch
+ cbed3fac96e21d0dead253b86eceff0f9b92c6326bf187e548e615e042786732408e28a69a3c5037e97eacab7f30d1df7b33d1eb9a670066644d7b5777187119  0004-cepheus-ufs-vcc-and-display.patch
+ cd06618bd1e0d7c7b45caa8b848416011d7a9728e4395aff6d1e8864a5b182f65d1be1aceb82c61872dea11970975a35253572171a06a1ed7de2ddee9d05c90a  0005-cepheus-remoteprocs-wifi.patch
++970d085a11202432b7fed5051a9f024575d3d5bc031044768828c28651a1b02f52af3feb68104d29799826399149a2491c1c76999beec8526092cb7c5240deb3  0006-cepheus-gpu.patch
+ "
+-- 
+2.56.0
+

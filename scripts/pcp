@@ -1,0 +1,6 @@
+#!/bin/sh
+# scp wrapper; write the phone side as phone:/path
+#   scripts/pcp boot.img phone:/tmp/        scripts/pcp phone:/tmp/test-boot.img .
+. "$(dirname "$0")/common.sh"
+for a; do shift; case $a in phone:*) set -- "$@" "$PHONE_USER@$PHONE_IP:${a#phone:}";; *) set -- "$@" "$a";; esac; done
+exec scp -q $SSH_OPTS "$@"

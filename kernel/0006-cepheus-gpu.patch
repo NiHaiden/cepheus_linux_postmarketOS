@@ -1,0 +1,24 @@
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+index bafd6ce3a..470c77316 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+@@ -660,6 +660,19 @@ &mdss_dsi0_phy {
+ 	status = "okay";
+ };
+ 
++&gmu {
++	status = "okay";
++};
++
++&gpu {
++	status = "okay";
++};
++
++&gpu_zap_shader {
++	/* msm-firmware-loader exposes the vendor blobs flat */
++	firmware-name = "a640_zap.mdt";
++};
++
+ /* Firmware is used in place from the modem/vendor partitions (msm-firmware-loader) */
+ &remoteproc_adsp {
+ 	firmware-name = "adsp.mdt";

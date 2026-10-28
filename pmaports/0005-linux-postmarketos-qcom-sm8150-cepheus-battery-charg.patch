@@ -1,0 +1,86 @@
+From 6b339126b917793638530fece142a7a62da83cc0 Mon Sep 17 00:00:00 2001
+From: cepheus <cepheus@local>
+Date: Wed, 28 Oct 2026 16:21:30 +0000
+Subject: [PATCH 5/7] linux-postmarketos-qcom-sm8150: cepheus: battery, charger
+ and fuel gauge
+
+---
+ .../0008-cepheus-battery.patch                | 38 +++++++++++++++++++
+ .../linux-postmarketos-qcom-sm8150/APKBUILD   |  4 +-
+ 2 files changed, 41 insertions(+), 1 deletion(-)
+ create mode 100644 device/testing/linux-postmarketos-qcom-sm8150/0008-cepheus-battery.patch
+
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/0008-cepheus-battery.patch b/device/testing/linux-postmarketos-qcom-sm8150/0008-cepheus-battery.patch
+new file mode 100644
+index 0000000000..8706bfb46e
+--- /dev/null
++++ b/device/testing/linux-postmarketos-qcom-sm8150/0008-cepheus-battery.patch
+@@ -0,0 +1,38 @@
++diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++index ba0362d8a..ca67cfc72 100644
++--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++@@ -64,6 +64,15 @@ framebuffer: framebuffer@9c000000 {
++ 		};
++ 	};
++ 
+++	/* downstream cepheus-sm8150.dtsi: batterydata-F1-*-3300mah, fv-max-uv 4400000, fg-cutoff-voltage 3400 */
+++	battery: battery {
+++		compatible = "simple-battery";
+++		charge-full-design-microamp-hours = <3300000>;
+++		voltage-min-design-microvolt = <3400000>;
+++		/* qcom_smbx programs this as the float (max charge) voltage */
+++		voltage-max-design-microvolt = <4400000>;
+++	};
+++
++ 	disp_vci_vreg: disp-vci-regulator {
++ 		compatible = "regulator-fixed";
++ 		regulator-name = "disp_vci_vreg";
++@@ -540,6 +549,17 @@ &qupv3_id_2 {
++ 	status = "okay";
++ };
++ 
+++&pm8150b_charger {
+++	monitored-battery = <&battery>;
+++	status = "okay";
+++};
+++
+++&pm8150b_fg {
+++	monitored-battery = <&battery>;
+++	power-supplies = <&pm8150b_charger>;
+++	status = "okay";
+++};
+++
++ &pon {
++ 	mode-recovery = <0x1>;
++ 	mode-bootloader = <0x2>;
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+index 7e65be31c8..efb5cc9184 100644
+--- a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
++++ b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+@@ -3,7 +3,7 @@ maintainer="Pan Ortiz <panjeoc@proton.me>"
+ _flavor="postmarketos-qcom-sm8150"
+ pkgname=linux-$_flavor
+ pkgver=7.0.0
+-pkgrel=4
++pkgrel=5
+ pkgdesc="Mainline Kernel fork for SM8150 devices"
+ arch="aarch64"
+ _carch="arm64"
+@@ -42,6 +42,7 @@ source="
+ 	0005-cepheus-remoteprocs-wifi.patch
+ 	0006-cepheus-gpu.patch
+ 	0007-cepheus-touchscreen-ftm5-i2c.patch
++	0008-cepheus-battery.patch
+ "
+ builddir="$srcdir/linux-$_tag"
+ 
+@@ -99,4 +100,5 @@ cbed3fac96e21d0dead253b86eceff0f9b92c6326bf187e548e615e042786732408e28a69a3c5037
+ cd06618bd1e0d7c7b45caa8b848416011d7a9728e4395aff6d1e8864a5b182f65d1be1aceb82c61872dea11970975a35253572171a06a1ed7de2ddee9d05c90a  0005-cepheus-remoteprocs-wifi.patch
+ 970d085a11202432b7fed5051a9f024575d3d5bc031044768828c28651a1b02f52af3feb68104d29799826399149a2491c1c76999beec8526092cb7c5240deb3  0006-cepheus-gpu.patch
+ d88b27d002ef59b68ef79490899ef0a738016a13fcec492195b68761112a394b38c7632fa5a42652f168caad655bc416cbfa9723b3c23ece11bb870f19ee5557  0007-cepheus-touchscreen-ftm5-i2c.patch
++8e40f3b0c9f6de2cf9875b47391b609183180d37f462a5746a5f46579d4ce69ee30f01bd86430453cf1d8041540829d0acc3cc9acd5899f1c03fee6d9d4bf87f  0008-cepheus-battery.patch
+ "
+-- 
+2.56.0
+

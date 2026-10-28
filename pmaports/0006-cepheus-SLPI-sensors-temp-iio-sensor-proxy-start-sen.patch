@@ -1,0 +1,199 @@
+From e8c9cdae89b209373c749be2e9f78e5cb5e752b3 Mon Sep 17 00:00:00 2001
+From: cepheus <cepheus@local>
+Date: Wed, 28 Oct 2026 17:09:51 +0000
+Subject: [PATCH 6/7] cepheus: SLPI sensors; temp/iio-sensor-proxy: start
+ sensors claimed during startup
+
+---
+ .../0009-cepheus-slpi-sensors.patch           | 54 +++++++++++++++++++
+ .../linux-postmarketos-qcom-sm8150/APKBUILD   |  4 +-
+ ...start-sensors-claimed-during-startup.patch | 15 ++++++
+ temp/iio-sensor-proxy/APKBUILD                | 50 +++++++++++++++++
+ temp/iio-sensor-proxy/iio-sensor-proxy.initd  |  8 +++
+ 5 files changed, 130 insertions(+), 1 deletion(-)
+ create mode 100644 device/testing/linux-postmarketos-qcom-sm8150/0009-cepheus-slpi-sensors.patch
+ create mode 100644 temp/iio-sensor-proxy/0001-start-sensors-claimed-during-startup.patch
+ create mode 100644 temp/iio-sensor-proxy/APKBUILD
+ create mode 100644 temp/iio-sensor-proxy/iio-sensor-proxy.initd
+
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/0009-cepheus-slpi-sensors.patch b/device/testing/linux-postmarketos-qcom-sm8150/0009-cepheus-slpi-sensors.patch
+new file mode 100644
+index 0000000000..ed6fd59833
+--- /dev/null
++++ b/device/testing/linux-postmarketos-qcom-sm8150/0009-cepheus-slpi-sensors.patch
+@@ -0,0 +1,54 @@
++diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++index ca67cfc72..0ea5bb630 100644
++--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++@@ -118,6 +118,15 @@ ai_key {
++ 	};
++ 
++ 	reserved-memory {
+++		/* SLPI FastRPC heap, shared with the DSP via SCM (as on sdm845; downstream adsp_mem) */
+++		fastrpc_mem: fastrpc {
+++			compatible = "shared-dma-pool";
+++			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+++			alignment = <0x0 0x400000>;
+++			size = <0x0 0x1000000>;
+++			reusable;
+++		};
+++
++ 		tz_mem: memory@86200000 {
++ 			no-map;
++ 			reg = <0x0 0x86200000 0x0 0x5500000>;
++@@ -758,6 +767,20 @@ &remoteproc_cdsp {
++ 	status = "okay";
++ };
++ 
+++&remoteproc_slpi {
+++	/* downstream qcom,msm-ssc-sensors: qcom,firmware-name = "slpi_cp" */
+++	firmware-name = "slpi_cp.mdt";
+++	status = "okay";
+++
+++	glink-edge {
+++		fastrpc {
+++			qcom,vmids = <QCOM_SCM_VMID_HLOS QCOM_SCM_VMID_MSS_MSA
+++				      QCOM_SCM_VMID_SSC_Q6 QCOM_SCM_VMID_ADSP_Q6>;
+++			memory-region = <&fastrpc_mem>;
+++		};
+++	};
+++};
+++
++ &remoteproc_mpss {
++ 	firmware-name = "modem.mdt";
++ 	status = "okay";
++diff --git a/drivers/misc/fastrpc.c b/drivers/misc/fastrpc.c
++index 1080f9acf..bd8cef92b 100644
++--- a/drivers/misc/fastrpc.c
+++++ b/drivers/misc/fastrpc.c
++@@ -1005,7 +1005,7 @@ static int fastrpc_get_args(u32 kernel, struct fastrpc_invoke_ctx *ctx)
++ 
++ 	ctx->msg_sz = pkt_size;
++ 
++-	if (ctx->fl->sctx->sid)
+++	if (ctx->fl->sctx->sid && ctx->fl->pd != SENSORS_PD)
++ 		err = fastrpc_buf_alloc(ctx->fl, dev, pkt_size, &ctx->buf);
++ 	else
++ 		err = fastrpc_remote_heap_alloc(ctx->fl, dev, pkt_size, &ctx->buf);
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+index efb5cc9184..3d0dc08bc2 100644
+--- a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
++++ b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+@@ -3,7 +3,7 @@ maintainer="Pan Ortiz <panjeoc@proton.me>"
+ _flavor="postmarketos-qcom-sm8150"
+ pkgname=linux-$_flavor
+ pkgver=7.0.0
+-pkgrel=5
++pkgrel=6
+ pkgdesc="Mainline Kernel fork for SM8150 devices"
+ arch="aarch64"
+ _carch="arm64"
+@@ -43,6 +43,7 @@ source="
+ 	0006-cepheus-gpu.patch
+ 	0007-cepheus-touchscreen-ftm5-i2c.patch
+ 	0008-cepheus-battery.patch
++	0009-cepheus-slpi-sensors.patch
+ "
+ builddir="$srcdir/linux-$_tag"
+ 
+@@ -101,4 +102,5 @@ cd06618bd1e0d7c7b45caa8b848416011d7a9728e4395aff6d1e8864a5b182f65d1be1aceb82c618
+ 970d085a11202432b7fed5051a9f024575d3d5bc031044768828c28651a1b02f52af3feb68104d29799826399149a2491c1c76999beec8526092cb7c5240deb3  0006-cepheus-gpu.patch
+ d88b27d002ef59b68ef79490899ef0a738016a13fcec492195b68761112a394b38c7632fa5a42652f168caad655bc416cbfa9723b3c23ece11bb870f19ee5557  0007-cepheus-touchscreen-ftm5-i2c.patch
+ 8e40f3b0c9f6de2cf9875b47391b609183180d37f462a5746a5f46579d4ce69ee30f01bd86430453cf1d8041540829d0acc3cc9acd5899f1c03fee6d9d4bf87f  0008-cepheus-battery.patch
++75821be2a73a843e49a0c2b5aee2b3b8b29970ff1e2343196e86f7dd4003cee78e6e0075723a1751c687187d7996c6ed13a38befc7aef8d186a25bda3e8ff709  0009-cepheus-slpi-sensors.patch
+ "
+diff --git a/temp/iio-sensor-proxy/0001-start-sensors-claimed-during-startup.patch b/temp/iio-sensor-proxy/0001-start-sensors-claimed-during-startup.patch
+new file mode 100644
+index 0000000000..a6ba1b354c
+--- /dev/null
++++ b/temp/iio-sensor-proxy/0001-start-sensors-claimed-during-startup.patch
+@@ -0,0 +1,15 @@
++--- a/src/iio-sensor-proxy.c
+++++ b/src/iio-sensor-proxy.c
++@@ -779,6 +779,12 @@
++ 		}
++ 
++ 		DEVICE_FOR_TYPE(i) = sensor_device;
+++
+++		/* A client may have claimed the sensor while driver_open() was
+++		 * running (e.g. SSC drivers iterate the main loop), when there
+++		 * was no device to start yet. Start it now. */
+++		if (g_hash_table_size (data->clients[i]) > 0)
+++			driver_set_polling (sensor_device, TRUE);
++ 	}
++ 
++ 	if (!any_sensors_left (data))
+diff --git a/temp/iio-sensor-proxy/APKBUILD b/temp/iio-sensor-proxy/APKBUILD
+new file mode 100644
+index 0000000000..04b5859957
+--- /dev/null
++++ b/temp/iio-sensor-proxy/APKBUILD
+@@ -0,0 +1,50 @@
++# Forked from Alpine: start SSC sensors that were claimed while iio-sensor-proxy was still starting
++# (KWin claims the accelerometer immediately, so auto-rotate never got data). Drop once fixed upstream.
++# Contributor: Rasmus Thomsen <oss@cogitri.dev>
++# Maintainer: Natanael Copa <ncopa@alpinelinux.org>
++pkgname=iio-sensor-proxy
++pkgver=3.9
++pkgrel=3
++pkgdesc="IIO sensors to D-Bus proxy"
++url="https://gitlab.freedesktop.org/hadess/iio-sensor-proxy"
++arch="all"
++license="GPL-2.0-or-later"
++depends="dbus"
++makedepends="
++	eudev-dev
++	glib-dev
++	libgudev-dev
++	meson
++	polkit-dev
++	libssc-dev
++	"
++subpackages="$pkgname-openrc $pkgname-systemd $pkgname-udev $pkgname-dbg"
++source="https://gitlab.freedesktop.org/hadess/iio-sensor-proxy/-/archive/$pkgver/iio-sensor-proxy-$pkgver.tar.gz
++	iio-sensor-proxy.initd
++	0001-start-sensors-claimed-during-startup.patch
++	"
++
++build() {
++	abuild-meson \
++		-Db_lto=true \
++		-Dssc-support=enabled \
++		-Dsystemdsystemunitdir=/usr/lib/systemd/system \
++		. output
++	meson compile -C output
++}
++
++check() {
++	meson test --print-errorlogs -C output
++}
++
++package() {
++	DESTDIR="$pkgdir" meson install --no-rebuild -C output
++
++	install -Dm755 "$srcdir"/$pkgname.initd "$pkgdir"/etc/init.d/$pkgname
++}
++
++sha512sums="
++a89c842f8db2a1a36c1c7c990434bb57fd905224459170cba2ec56e79f1272acc4cac4221937704d5e9247f957d86fde716d25e2d1ccb80d88fa643b47edfda6  iio-sensor-proxy-3.9.tar.gz
++b25df94e249ca46fe96926e5a866c20dc913fa52a2d9259fb7a3594861c6b2f246fc7fef8a21f5b021f3a71401f734ae27210137b0b1917a7daaffb5e3221f2e  iio-sensor-proxy.initd
++187150eb739dc82f8c057e8f62448c159c9760ce2ebab2c924bfa6d067fc53d6f32c9b33585f180d881d87b4514b7294fbd8d42101416d5be9494803143be4d3  0001-start-sensors-claimed-during-startup.patch
++"
+diff --git a/temp/iio-sensor-proxy/iio-sensor-proxy.initd b/temp/iio-sensor-proxy/iio-sensor-proxy.initd
+new file mode 100644
+index 0000000000..cb3c73eb2d
+--- /dev/null
++++ b/temp/iio-sensor-proxy/iio-sensor-proxy.initd
+@@ -0,0 +1,8 @@
++#!/sbin/openrc-run
++
++supervisor=supervise-daemon
++command="/usr/libexec/iio-sensor-proxy"
++
++depend() {
++	need dbus
++}
+-- 
+2.56.0
+

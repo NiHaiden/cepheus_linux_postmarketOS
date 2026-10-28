@@ -1,0 +1,86 @@
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+index 4b48ee75c..678d308cb 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+@@ -39,7 +39,9 @@ / {
+ 	compatible = "xiaomi,cepheus", "qcom,sm8150";
+ 
+ 	aliases {
++		bluetooth0 = &bluetooth;
+ 		serial0 = &uart2;
++		hsuart0 = &uart13;
+ 		display0 = &framebuffer;
+ 	};
+ 
+@@ -719,6 +721,46 @@ ts_active: ts-active-state {
+ 		bias-pull-up;
+ 	};
+ 
++	/* downstream qupv3_se13_4uart (sm8150-pinctrl.dtsi) */
++	qup_uart13_default: qup-uart13-default-state {
++		cts-rx-pins {
++			pins = "gpio43", "gpio46";
++			function = "qup13";
++			drive-strength = <2>;
++			bias-disable;
++		};
++
++		rts-pins {
++			pins = "gpio44";
++			function = "qup13";
++			drive-strength = <2>;
++			bias-pull-down;
++		};
++
++		tx-pins {
++			pins = "gpio45";
++			function = "qup13";
++			drive-strength = <2>;
++			bias-pull-up;
++		};
++	};
++
++	qup_uart13_sleep: qup-uart13-sleep-state {
++		cts-rts-pins {
++			pins = "gpio43", "gpio44";
++			function = "gpio";
++			drive-strength = <2>;
++			bias-pull-down;
++		};
++
++		tx-rx-pins {
++			pins = "gpio45", "gpio46";
++			function = "gpio";
++			drive-strength = <2>;
++			bias-pull-up;
++		};
++	};
++
+ 	ai_key_pin_a: ai-key-pin-active {
+ 		pins = "gpio97";
+ 		function = "gpio";
+@@ -732,6 +774,24 @@ &uart2 {
+ 	status = "okay";
+ };
+ 
++&uart13 {
++	pinctrl-0 = <&qup_uart13_default>;
++	pinctrl-1 = <&qup_uart13_sleep>;
++	pinctrl-names = "default", "sleep";
++
++	status = "okay";
++
++	/* WCN3998, same as raphael; downstream bt_wcn3990 supplies: core l7a, pa l2c, ldo l11c */
++	bluetooth: bluetooth {
++		compatible = "qcom,wcn3998-bt";
++		vddio-supply = <&vreg_l7a_1p8>;
++		vddxo-supply = <&vreg_l7a_1p8>;
++		vddrf-supply = <&vreg_l2c_1p3>;
++		vddch0-supply = <&vreg_l11c_3p3>;
++		max-speed = <3200000>;
++	};
++};
++
+ &usb_1 {
+ 	status = "okay";
+ };

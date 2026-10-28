@@ -1,0 +1,6 @@
+#!/bin/sh
+# Run a shell command on the phone as root via sudo.
+#   scripts/pms 'dmesg | tail'
+# Avoid single quotes inside the command (it is wrapped in sh -c '...').
+. "$(dirname "$0")/common.sh"
+exec "$(dirname "$0")/pm" "echo '$PHONE_PASS' | sudo -S -p '' sh -c '$*'"

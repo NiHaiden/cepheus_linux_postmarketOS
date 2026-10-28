@@ -1,0 +1,261 @@
+From f3d16f1fd0d1d8f0a1b7706d46e3d5a2fd858cf6 Mon Sep 17 00:00:00 2001
+From: cepheus <cepheus@local>
+Date: Wed, 28 Oct 2026 19:31:47 +0000
+Subject: [PATCH 7/7] linux-postmarketos-qcom-sm8150: cepheus: speaker
+ (CS35L41)
+
+---
+ .../0010-cepheus-audio-speaker.patch          | 213 ++++++++++++++++++
+ .../linux-postmarketos-qcom-sm8150/APKBUILD   |   4 +-
+ 2 files changed, 216 insertions(+), 1 deletion(-)
+ create mode 100644 device/testing/linux-postmarketos-qcom-sm8150/0010-cepheus-audio-speaker.patch
+
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/0010-cepheus-audio-speaker.patch b/device/testing/linux-postmarketos-qcom-sm8150/0010-cepheus-audio-speaker.patch
+new file mode 100644
+index 0000000000..e7f95604f2
+--- /dev/null
++++ b/device/testing/linux-postmarketos-qcom-sm8150/0010-cepheus-audio-speaker.patch
+@@ -0,0 +1,213 @@
++diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++index 0ea5bb630..4b48ee75c 100644
++--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++@@ -10,7 +10,9 @@
++ #include <dt-bindings/input/gpio-keys.h>
++ #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
++ #include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+++#include <dt-bindings/sound/qcom,q6asm.h>
++ #include "sm8150.dtsi"
+++#include "sm8150-wcd9340.dtsi"
++ #include "pm8150.dtsi"
++ #include "pm8150b.dtsi"
++ #include "pm8150l.dtsi"
++@@ -554,6 +556,27 @@ vdd_boost_en_pin: vdd-boost-en-pin {
++ 	};
++ };
++ 
+++&qupv3_id_0 {
+++	status = "okay";
+++};
+++
+++&q6afedai {
+++	dai@22 {
+++		reg = <QUATERNARY_MI2S_RX>;
+++		qcom,sd-lines = <0>;
+++	};
+++};
+++
+++&q6asmdai {
+++	dai@0 {
+++		reg = <MSM_FRONTEND_DAI_MULTIMEDIA1>;
+++	};
+++
+++	dai@1 {
+++		reg = <MSM_FRONTEND_DAI_MULTIMEDIA2>;
+++	};
+++};
+++
++ &qupv3_id_2 {
++ 	status = "okay";
++ };
++@@ -586,10 +609,95 @@ &pon_resin {
++ 	status = "okay";
++ };
++ 
+++&sound {
+++	compatible = "qcom,sm8150-sndcard";
+++	pinctrl-0 = <&quat_mi2s_active &quat_mi2s_sd0_active &quat_mi2s_sd1_active>;
+++	pinctrl-names = "default";
+++	model = "Xiaomi Mi 9";
+++
+++	audio-routing = "RX_BIAS", "MCLK",
+++			"AMIC1", "MIC BIAS1",
+++			"AMIC3", "MIC BIAS3";
+++
+++	mm1-dai-link {
+++		link-name = "MultiMedia1";
+++		cpu {
+++			sound-dai = <&q6asmdai MSM_FRONTEND_DAI_MULTIMEDIA1>;
+++		};
+++	};
+++
+++	mm2-dai-link {
+++		link-name = "MultiMedia2";
+++		cpu {
+++			sound-dai = <&q6asmdai MSM_FRONTEND_DAI_MULTIMEDIA2>;
+++		};
+++	};
+++
+++	speaker-dai-link {
+++		link-name = "Speaker Playback";
+++		cpu {
+++			sound-dai = <&q6afedai QUATERNARY_MI2S_RX>;
+++		};
+++
+++		platform {
+++			sound-dai = <&q6routing>;
+++		};
+++
+++		codec {
+++			sound-dai = <&cs35l41 0>;
+++		};
+++	};
+++
+++	slimcap-dai-link {
+++		link-name = "SLIM Capture 1";
+++		cpu {
+++			sound-dai = <&q6afedai SLIMBUS_0_TX>;
+++		};
+++
+++		platform {
+++			sound-dai = <&q6routing>;
+++		};
+++
+++		codec {
+++			sound-dai = <&wcd9340 1>; /* AIF1_CAP */
+++		};
+++	};
+++};
+++
++ &tlmm {
++ 	/* gpios 0..3 are NFC spi, gpios 126..129 are FP spi */
++ 	gpio-reserved-ranges = <0 4>, <126 4>;
++ 
+++	cs35l41_irq_default: cs35l41-irq-default-state {
+++		pins = "gpio10";
+++		function = "gpio";
+++		drive-strength = <2>;
+++		bias-pull-up;
+++		input-enable;
+++	};
+++
+++	quat_mi2s_active: quat-mi2s-active-state {
+++		pins = "gpio137", "gpio138";
+++		function = "qua_mi2s";
+++		drive-strength = <8>;
+++		bias-disable;
+++		output-high;
+++	};
+++
+++	quat_mi2s_sd0_active: quat-mi2s-sd0-active-state {
+++		pins = "gpio139";
+++		function = "qua_mi2s";
+++		drive-strength = <8>;
+++		bias-disable;
+++	};
+++
+++	quat_mi2s_sd1_active: quat-mi2s-sd1-active-state {
+++		pins = "gpio140";
+++		function = "qua_mi2s";
+++		drive-strength = <8>;
+++		bias-disable;
+++	};
+++
++ 	panel_reset_pin: panel-reset-state {
++ 		pins = "gpio6";
++ 		function = "gpio";
++@@ -714,6 +822,33 @@ &gmu {
++ 	status = "okay";
++ };
++ 
+++&gpi_dma0 {
+++	status = "okay";
+++};
+++
+++&i2c4 {
+++	clock-frequency = <400000>;
+++	status = "okay";
+++
+++	/* Speaker amp; downstream cs35l41@40 on qupv3_se4_i2c (cepheus-sm8150.dtsi) */
+++	cs35l41: audio-codec@40 {
+++		compatible = "cirrus,cs35l41";
+++		reg = <0x40>;
+++		#sound-dai-cells = <1>;
+++		interrupt-parent = <&tlmm>;
+++		interrupts = <10 IRQ_TYPE_LEVEL_LOW>;
+++		reset-gpios = <&tlmm 89 GPIO_ACTIVE_HIGH>;
+++		VA-supply = <&vreg_s4a_1p8>;
+++		pinctrl-0 = <&cs35l41_irq_default>;
+++		pinctrl-names = "default";
+++		cirrus,boost-peak-milliamp = <4000>;
+++		cirrus,boost-ind-nanohenry = <1000>;
+++		cirrus,boost-cap-microfarad = <15>;
+++		cirrus,gpio2-src-select = <4>;
+++		cirrus,gpio2-output-enable;
+++	};
+++};
+++
++ &gpi_dma2 {
++ 	status = "okay";
++ };
++@@ -786,6 +921,25 @@ &remoteproc_mpss {
++ 	status = "okay";
++ };
++ 
+++/* Same Xiaomi SM8150 audio design as vayu (handset mics: ADC1/ADC3, per vendor mixer_paths) */
+++&wcd9340 {
+++	reset-gpios = <&tlmm 143 GPIO_ACTIVE_HIGH>;
+++	vdd-buck-sido-supply = <&vreg_s4a_1p8>;
+++	vdd-buck-supply = <&vreg_s4a_1p8>;
+++	vdd-tx-supply = <&vreg_s4a_1p8>;
+++	vdd-rx-supply = <&vreg_s4a_1p8>;
+++	vdd-io-supply = <&vreg_s4a_1p8>;
+++
+++	qcom,micbias1-microvolt = <2700000>;
+++	qcom,micbias2-microvolt = <2700000>;
+++	qcom,micbias3-microvolt = <2700000>;
+++	qcom,micbias4-microvolt = <2700000>;
+++
+++	qcom,mbhc-buttons-vthreshold-microvolt = <75000 150000 237000 500000 500000 500000 500000 500000>;
+++	qcom,mbhc-headset-vthreshold-microvolt = <2600000>;
+++	qcom,mbhc-headphone-vthreshold-microvolt = <50000>;
+++};
+++
++ &wifi {
++ 	vdd-0.8-cx-mx-supply = <&vreg_l1a_0p75>;
++ 	vdd-1.8-xo-supply = <&vreg_l7a_1p8>;
++diff --git a/sound/soc/qcom/sm8150.c b/sound/soc/qcom/sm8150.c
++index 3f1ca7c89..5a6b5706d 100644
++--- a/sound/soc/qcom/sm8150.c
+++++ b/sound/soc/qcom/sm8150.c
++@@ -319,6 +319,10 @@ static int sm8150_snd_startup(struct snd_pcm_substream *substream)
++ 			3072000, SNDRV_PCM_STREAM_PLAYBACK);
++ 		snd_soc_dai_set_fmt(cpu_dai, fmt);
++ 		snd_soc_dai_set_fmt(codec_dai, codec_dai_fmt);
+++		/* Codecs clocked from SCLK (e.g. CS35L41 PLL) need the rate; ignored by others */
+++		snd_soc_dai_set_sysclk(codec_dai, 0, 3072000, SND_SOC_CLOCK_IN);
+++		snd_soc_component_set_sysclk(codec_dai->component, 0, 0,
+++					     3072000, SND_SOC_CLOCK_IN);
++ 		break;
++ 
++ 	case QUATERNARY_TDM_RX_0:
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+index 3d0dc08bc2..d8bad86408 100644
+--- a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
++++ b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+@@ -3,7 +3,7 @@ maintainer="Pan Ortiz <panjeoc@proton.me>"
+ _flavor="postmarketos-qcom-sm8150"
+ pkgname=linux-$_flavor
+ pkgver=7.0.0
+-pkgrel=6
++pkgrel=7
+ pkgdesc="Mainline Kernel fork for SM8150 devices"
+ arch="aarch64"
+ _carch="arm64"
+@@ -44,6 +44,7 @@ source="
+ 	0007-cepheus-touchscreen-ftm5-i2c.patch
+ 	0008-cepheus-battery.patch
+ 	0009-cepheus-slpi-sensors.patch
++	0010-cepheus-audio-speaker.patch
+ "
+ builddir="$srcdir/linux-$_tag"
+ 
+@@ -103,4 +104,5 @@ cd06618bd1e0d7c7b45caa8b848416011d7a9728e4395aff6d1e8864a5b182f65d1be1aceb82c618
+ d88b27d002ef59b68ef79490899ef0a738016a13fcec492195b68761112a394b38c7632fa5a42652f168caad655bc416cbfa9723b3c23ece11bb870f19ee5557  0007-cepheus-touchscreen-ftm5-i2c.patch
+ 8e40f3b0c9f6de2cf9875b47391b609183180d37f462a5746a5f46579d4ce69ee30f01bd86430453cf1d8041540829d0acc3cc9acd5899f1c03fee6d9d4bf87f  0008-cepheus-battery.patch
+ 75821be2a73a843e49a0c2b5aee2b3b8b29970ff1e2343196e86f7dd4003cee78e6e0075723a1751c687187d7996c6ed13a38befc7aef8d186a25bda3e8ff709  0009-cepheus-slpi-sensors.patch
++b97a773966335e4805262da62a87a3504a912eef848e29f2e71dc289b51a0f53b9d99255ee39aa4722522d6fc72e8b13f4a7112fc2119c5eabd8a0626150f1af  0010-cepheus-audio-speaker.patch
+ "
+-- 
+2.56.0
+

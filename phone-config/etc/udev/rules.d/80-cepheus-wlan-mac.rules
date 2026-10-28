@@ -1,0 +1,2 @@
+# Real Wi-Fi MAC from persist/wlan_mac.bin (see /usr/local/sbin/cepheus-wlan-mac).
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="wlan*", DRIVERS=="ath10k_snoc", RUN+="/usr/local/sbin/cepheus-wlan-mac %k"

@@ -1,0 +1,184 @@
+From 7eb0fc02703faa94671b329f671da285b8c2dc5e Mon Sep 17 00:00:00 2001
+From: niklas <niklas@local>
+Date: Wed, 28 Oct 2026 13:31:22 +0000
+Subject: [PATCH 1/7] xiaomi-cepheus: fix UFS VCC, enable display, flash kernel
+ on update
+
+---
+ device/testing/device-xiaomi-cepheus/APKBUILD |   4 +-
+ .../testing/device-xiaomi-cepheus/deviceinfo  |   3 +
+ .../0004-cepheus-ufs-vcc-and-display.patch    | 102 ++++++++++++++++++
+ .../linux-postmarketos-qcom-sm8150/APKBUILD   |   4 +-
+ 4 files changed, 110 insertions(+), 3 deletions(-)
+ create mode 100644 device/testing/linux-postmarketos-qcom-sm8150/0004-cepheus-ufs-vcc-and-display.patch
+
+diff --git a/device/testing/device-xiaomi-cepheus/APKBUILD b/device/testing/device-xiaomi-cepheus/APKBUILD
+index eabca9f4ea..be65dd3aac 100644
+--- a/device/testing/device-xiaomi-cepheus/APKBUILD
++++ b/device/testing/device-xiaomi-cepheus/APKBUILD
+@@ -2,7 +2,7 @@
+ maintainer="Alexey Minnekhanov <alexeymin@postmarketos.org>"
+ pkgname=device-xiaomi-cepheus
+ pkgdesc="Xiaomi Mi 9"
+-pkgver=5
++pkgver=6
+ pkgrel=0
+ url="https://postmarketos.org"
+ license="MIT"
+@@ -25,6 +25,6 @@ package() {
+ }
+ 
+ sha512sums="
+-b629bd28d9571db20c0a7b625016a17bc576141091fc8f8879229ff0415e1b70448ed2b65f54ca6378c084ed37b1ef32720525994b062a1412c1ac86402691ab  deviceinfo
++ffc4240164815cba73fc24adb5f959d9aed7a99726b335bb38aaf377645986ebb28e678eaa5ade4b346a902f22724bbbb89f3c2a167e0a5599adbcddbd46cb10  deviceinfo
+ 42d3a47ebc8109fc3bf1ac03ddae6254ca9bc7b0a64f58cfe652b30a40bdceddf09fd65a46fddeda0138d8b52dbccc2425da06f7705373f4a4ab0babaa35b150  kernel-cmdline.conf
+ "
+diff --git a/device/testing/device-xiaomi-cepheus/deviceinfo b/device/testing/device-xiaomi-cepheus/deviceinfo
+index cd16e634e2..c19cc9ecbc 100644
+--- a/device/testing/device-xiaomi-cepheus/deviceinfo
++++ b/device/testing/device-xiaomi-cepheus/deviceinfo
+@@ -32,3 +32,6 @@ deviceinfo_rootfs_image_sector_size="4096"
+ deviceinfo_usb_idVendor="0x2717"
+ # Mi/Redmi series (RNDIS)
+ deviceinfo_usb_idProduct="0xff80"
++
++# write boot.img to the boot partition on kernel upgrades
++deviceinfo_flash_kernel_on_update="true"
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/0004-cepheus-ufs-vcc-and-display.patch b/device/testing/linux-postmarketos-qcom-sm8150/0004-cepheus-ufs-vcc-and-display.patch
+new file mode 100644
+index 0000000000..fc364731db
+--- /dev/null
++++ b/device/testing/linux-postmarketos-qcom-sm8150/0004-cepheus-ufs-vcc-and-display.patch
+@@ -0,0 +1,102 @@
++From: niklas <niklas@local>
++Subject: [PATCH] arm64: dts: qcom: sm8150-xiaomi-cepheus: fix UFS VCC, enable display
++
++- UFS: the Mi 9 has UFS 2.1 (WDC, ufsid 0x145). l10a min 2.504V is a UFS 3.0
++  level; the link never comes up ("link startup failed"). Use 2.95V like
++  downstream.
++- Display: Samsung AMS639RQ08 module (EA8076 DDIC), same panel as raphael.
++  VCI from tlmm 21, reset tlmm 6, TE tlmm 8, vddio l14a.
++
++---
++diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++index c6dd8b11b..9f780f446 100644
++--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++@@ -64,6 +64,16 @@ framebuffer: framebuffer@9c000000 {
++ 		};
++ 	};
++ 
+++	disp_vci_vreg: disp-vci-regulator {
+++		compatible = "regulator-fixed";
+++		regulator-name = "disp_vci_vreg";
+++		regulator-min-microvolt = <3000000>;
+++		regulator-max-microvolt = <3000000>;
+++		gpio = <&tlmm 21 GPIO_ACTIVE_HIGH>;
+++		enable-active-high;
+++		regulator-boot-on;
+++	};
+++
++ 	gpio_keys {
++ 		compatible = "gpio-keys";
++ 		pinctrl-names = "default";
++@@ -312,7 +322,7 @@ vreg_l9a_1p2: ldo9 {
++ 		};
++ 
++ 		vreg_l10a_2p5: ldo10 {
++-			regulator-min-microvolt = <2504000>;
+++			regulator-min-microvolt = <2950000>;
++ 			regulator-max-microvolt = <2960000>;
++ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++ 			regulator-name = "pm8150_l10a_2p5";
++@@ -537,6 +547,20 @@ &tlmm {
++ 	/* gpios 0..3 are NFC spi, gpios 126..129 are FP spi */
++ 	gpio-reserved-ranges = <0 4>, <126 4>;
++ 
+++	panel_reset_pin: panel-reset-state {
+++		pins = "gpio6";
+++		function = "gpio";
+++		drive-strength = <8>;
+++		bias-disable;
+++	};
+++
+++	panel_te_pin: panel-te-state {
+++		pins = "gpio8";
+++		function = "mdp_vsync";
+++		drive-strength = <2>;
+++		bias-pull-down;
+++	};
+++
++ 	ai_key_pin_a: ai-key-pin-active {
++ 		pins = "gpio97";
++ 		function = "gpio";
++@@ -598,3 +622,40 @@ &ufs_mem_phy {
++     /* Schematic: VREG_L3C_1P2 */
++     vdda-pll-supply = <&vreg_l3c_1p2>;
++ };
+++
+++&mdss {
+++	status = "okay";
+++};
+++
+++&mdss_dsi0 {
+++	vdda-supply = <&vreg_l3c_1p2>;
+++	status = "okay";
+++
+++	panel: panel@0 {
+++		compatible = "samsung,ams639rq08";
+++		reg = <0>;
+++
+++		vddio-supply = <&vreg_l14a_1p8>;
+++		vdd3p3-supply = <&disp_vci_vreg>;
+++		reset-gpios = <&tlmm 6 GPIO_ACTIVE_LOW>;
+++
+++		pinctrl-0 = <&panel_reset_pin &panel_te_pin>;
+++		pinctrl-names = "default";
+++
+++		port {
+++			panel_in: endpoint {
+++				remote-endpoint = <&mdss_dsi0_out>;
+++			};
+++		};
+++	};
+++};
+++
+++&mdss_dsi0_out {
+++	data-lanes = <0 1 2 3>;
+++	remote-endpoint = <&panel_in>;
+++};
+++
+++&mdss_dsi0_phy {
+++	vdds-supply = <&vreg_l5a_0p875>;
+++	status = "okay";
+++};
+diff --git a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+index f47a65c19f..da5e5ce3ac 100644
+--- a/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
++++ b/device/testing/linux-postmarketos-qcom-sm8150/APKBUILD
+@@ -3,7 +3,7 @@ maintainer="Pan Ortiz <panjeoc@proton.me>"
+ _flavor="postmarketos-qcom-sm8150"
+ pkgname=linux-$_flavor
+ pkgver=7.0.0
+-pkgrel=0
++pkgrel=1
+ pkgdesc="Mainline Kernel fork for SM8150 devices"
+ arch="aarch64"
+ _carch="arm64"
+@@ -38,6 +38,7 @@ source="
+ 	0001-enable-ufs.patch
+ 	0002-libbpf-Fix-UAF-in-strset__add_str.patch
+ 	0003-xiaomi-vayu-fix-otg.patch
++	0004-cepheus-ufs-vcc-and-display.patch
+ "
+ builddir="$srcdir/linux-$_tag"
+ 
+@@ -91,4 +92,5 @@ c2513e51494325fcff8eb5cf431ffa095d88abcedc18fee81b79bda47516bed359cfdf147ae9e92d
+ 316decafef4528b3d8fa9ce1f2c1588048ae0a99adf088d61372d84ff95ae7bf58e5cc0d03d73201f1735f3d523468d98113ac575714930229434a46385a5c3d  0001-enable-ufs.patch
+ a75ad54e77870170a1e33bd8ec68bfa64542791f1c9383da6335f0e7f5da14f10e9fe267d58a3ade8e04d7eb3d82e5ca2354b52b2fa0d363c9bb6d5bec860ba8  0002-libbpf-Fix-UAF-in-strset__add_str.patch
+ 7b62e50cc3277361bd941e2aa63ccc9922aaf86deec3519c584eee5f04f059c0a812e6a5f51575928270bf749860d5707da29b1b0a2440e8918c7cf8c37e1bd3  0003-xiaomi-vayu-fix-otg.patch
++cbed3fac96e21d0dead253b86eceff0f9b92c6326bf187e548e615e042786732408e28a69a3c5037e97eacab7f30d1df7b33d1eb9a670066644d7b5777187119  0004-cepheus-ufs-vcc-and-display.patch
+ "
+-- 
+2.56.0
+

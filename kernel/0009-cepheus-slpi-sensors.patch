@@ -1,0 +1,54 @@
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+index ca67cfc72..0ea5bb630 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-cepheus.dts
+@@ -118,6 +118,15 @@ ai_key {
+ 	};
+ 
+ 	reserved-memory {
++		/* SLPI FastRPC heap, shared with the DSP via SCM (as on sdm845; downstream adsp_mem) */
++		fastrpc_mem: fastrpc {
++			compatible = "shared-dma-pool";
++			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
++			alignment = <0x0 0x400000>;
++			size = <0x0 0x1000000>;
++			reusable;
++		};
++
+ 		tz_mem: memory@86200000 {
+ 			no-map;
+ 			reg = <0x0 0x86200000 0x0 0x5500000>;
+@@ -758,6 +767,20 @@ &remoteproc_cdsp {
+ 	status = "okay";
+ };
+ 
++&remoteproc_slpi {
++	/* downstream qcom,msm-ssc-sensors: qcom,firmware-name = "slpi_cp" */
++	firmware-name = "slpi_cp.mdt";
++	status = "okay";
++
++	glink-edge {
++		fastrpc {
++			qcom,vmids = <QCOM_SCM_VMID_HLOS QCOM_SCM_VMID_MSS_MSA
++				      QCOM_SCM_VMID_SSC_Q6 QCOM_SCM_VMID_ADSP_Q6>;
++			memory-region = <&fastrpc_mem>;
++		};
++	};
++};
++
+ &remoteproc_mpss {
+ 	firmware-name = "modem.mdt";
+ 	status = "okay";
+diff --git a/drivers/misc/fastrpc.c b/drivers/misc/fastrpc.c
+index 1080f9acf..bd8cef92b 100644
+--- a/drivers/misc/fastrpc.c
++++ b/drivers/misc/fastrpc.c
+@@ -1005,7 +1005,7 @@ static int fastrpc_get_args(u32 kernel, struct fastrpc_invoke_ctx *ctx)
+ 
+ 	ctx->msg_sz = pkt_size;
+ 
+-	if (ctx->fl->sctx->sid)
++	if (ctx->fl->sctx->sid && ctx->fl->pd != SENSORS_PD)
+ 		err = fastrpc_buf_alloc(ctx->fl, dev, pkt_size, &ctx->buf);
+ 	else
+ 		err = fastrpc_remote_heap_alloc(ctx->fl, dev, pkt_size, &ctx->buf);

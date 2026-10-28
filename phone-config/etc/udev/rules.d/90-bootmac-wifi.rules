@@ -1,0 +1,2 @@
+# Masks bootmac's wlan rule: the WCN3990 Wi-Fi already gets its real MAC from the modem.
+# bootmac is only wanted for Bluetooth (the controller has no BD address of its own).
