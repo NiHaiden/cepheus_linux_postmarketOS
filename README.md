@@ -192,14 +192,14 @@ Fastboot lives in the bootloader, which none of this touches: **you can always g
 8. **Bluetooth**: audio profiles beyond the AirPods test are untested.
 9. **Variants**: the DT assumes the f1mp panel and WDC UFS. Other Mi 9 units may differ (panel `f1p2`, other UFS vendors).
 
-## Upstreaming
+## Patches that were done
 
 - pmaports: `pmaports/0001…0008-*.patch` against `device/testing/{linux-postmarketos-qcom-sm8150,device-xiaomi-cepheus}`.
   Package `board.bin` + `firmware-5.bin` properly, or send a `board-2.bin` entry
   (`bus=snoc,qmi-board-id=ff,qmi-chip-id=30224,variant=xiaomi_cepheus`) to ath10k-firmware.
-- Kernel: `kernel/0004…0011` belong in the sm8150 fork (`gitlab.postmarketos.org/soc/qualcomm-sm8150/linux`), then upstream.
+- Kernel: `kernel/0004…0011`
   The UFS VCC fix matters most.
-- iio-sensor-proxy: `pmaports/iio-sensor-proxy-0001-*.patch` is worth sending upstream on its own.
+- iio-sensor-proxy: `pmaports/iio-sensor-proxy-0001-*.patch`
 
 ## Repository layout
 
