@@ -1,7 +1,8 @@
 # Agent brief: mainline Linux on Xiaomi Mi 9 (cepheus)
 
 You're working on postmarketOS (mainline kernel `7.0.0-sm8150-aurora`) on a physical Xiaomi Mi 9 connected over USB.
-README.md has the full history and rationale. This file is what you need to act safely and quickly.
+README.md is the overview; `docs/` has the architecture, hardware map, per-subsystem pages (with the rationale for each fix),
+workflow and troubleshooting. This file is what you need to act safely and quickly.
 If a `CLAUDE.local.md` exists, it describes the specific unit on the desk and overrides this file.
 
 ## Hard rules (owner's data and hardware)
@@ -54,5 +55,6 @@ README "Known issues": GPU-fault burst → panel polish → mics/earpiece → ce
   new `00NN-*.patch` in pmaports + bump pkgrel + `pmbootstrap checksum` + `build --force` → `apk add --allow-untrusted` on the phone → reboot test.
 - After pmaports commits, refresh: `git bundle create pmaports/cepheus.bundle $(cat pmaports/BASE_COMMIT)..HEAD` and copy the patches.
 - The phone's `/tmp` is tmpfs (wiped on reboot).
+- When a subsystem changes, update its page in `docs/subsystems/` (and `docs/known-issues.md`) in the same commit.
 - A cold reboot is the reliable reset for remoteproc/ath10k state. Hot-reloading ath10k after the WLAN firmware is up fails.
 - `modetest` needs a pty (`ssh -tt`) to print its `freq:` lines. Use `-v` for continuous page flips on this command-mode panel.

@@ -31,6 +31,7 @@ Kernel and device-tree patches, pmaports changes, setup scripts for the phone, a
 | USB networking | ssh at `172.16.42.1` |
 
 **Not yet:** cellular, cameras, microphones, earpiece, proximity, fast/wireless charging. See [Known issues](#known-issues-and-todo).
+How each part works: [Documentation](#documentation).
 
 ## Quick start
 
@@ -88,61 +89,41 @@ A fresh phone has no Wi-Fi until this has run, so the script shares the host's i
 - Kernel upgrades write the `boot` partition automatically (`deviceinfo_flash_kernel_on_update`).
 - Fastboot: Volume Down + Power, or `sudo systemctl reboot --reboot-argument=bootloader`.
 
+## Documentation
+
+The details live in [`docs/`](docs/README.md), with Mermaid diagrams throughout:
+
+| | |
+|---|---|
+| [Architecture](docs/architecture.md) | The whole system on one page: SoC, DSPs, kernel, userspace, and how this repo wraps pmbootstrap |
+| [Hardware map](docs/hardware.md) | Every peripheral with bus, address, GPIOs, power rails; reserved memory; what isn't enabled |
+| [Boot and storage](docs/boot-and-storage.md) | Boot chain, partition layout, `boot.img`, partitions you must never write |
+| [Firmware and coprocessors](docs/firmware-and-coprocessors.md) | msm-firmware-loader, the four Hexagon DSPs, QRTR, tqftpserv, rmtfs |
+| [Subsystems](docs/README.md#subsystems) | One page each: storage, display, GPU, touch, Wi-Fi, Bluetooth, audio, sensors, power, buttons/USB |
+| [Development](docs/development.md) · [Packaging](docs/packaging.md) · [Phone setup](docs/phone-setup.md) | Working on it |
+| [Troubleshooting](docs/troubleshooting.md) · [Known issues](docs/known-issues.md) | When things go wrong, and what's still broken |
+
 ## How it works
 
 Facts came from Xiaomi's downstream kernel (`MiCode/Xiaomi_Kernel_OpenSource`, branch `cepheus-p-oss`; relevant files in
 `kernel/downstream-reference/`); the DT shape from sibling mainline boards (raphael = Mi 9T Pro/K20 Pro, vayu, nabu).
 All DT changes are in `sm8150-xiaomi-cepheus.dts` (full result: `kernel/sm8150-xiaomi-cepheus.dts.final`).
+Stock firmware is used **in place**: msm-firmware-loader mounts `modem`/`vendor`/`dsp`/`bluetooth`/`persist` read-only
+and links the blobs into `/run/msm-firmware-loader/target` ([details](docs/firmware-and-coprocessors.md)).
 
-**Partitions.** `boot` = pmOS boot.img (kernel + appended DTB + initramfs). `userdata` = pmOS image (`pmOS_boot` +
-`pmOS_root`, 4K sectors). `dtbo` erased, `vbmeta` with verification off. Stock `modem`/`vendor`/`dsp`/`bluetooth`/`persist`
-are mounted **read-only** by msm-firmware-loader, which links all blobs into `/run/msm-firmware-loader/target` and sets
-`firmware_class.path`; that's why DT firmware names are bare (`modem.mdt`). Never write `persist`, `modemst*`, `fsg`, `fsc`.
+| Patch | What it took | Details |
+|---|---|---|
+| 0004 UFS | The DT let VCC (`l10a`) drop to 2.504 V, a UFS 3.0 level; this UFS 2.1 chip needs 2.95 V. Without it no cepheus with this UFS boots | [storage](docs/subsystems/storage.md) |
+| 0004 Display | Command-mode panel (simplefb can't drive it); same module as raphael, so mainline's `panel-samsung-ams639rq08` works. Wiring only | [display](docs/subsystems/display.md) |
+| 0005 Remoteprocs, Wi-Fi | WLAN firmware runs on the modem DSP. Board data: `board.bin` → stock `bdwlan.bin`. Real MAC from `persist`. **Don't install `linux-firmware-ath10k`** | [wifi](docs/subsystems/wifi.md) |
+| 0006 GPU | `&gmu` + `&gpu` on, zap shader `a640_zap.mdt` | [gpu](docs/subsystems/gpu.md) |
+| 0007 Touch | ST's downstream FTM5 driver built a second time for I2C (`ftm5_i2c`); `st,ignore-mp-flag` skips a 40 s init on every boot | [touch](docs/subsystems/touch.md) |
+| 0008 Battery | `simple-battery` node; 4.4 V max is written to the charger's float-voltage register, so it must match the cell | [power](docs/subsystems/power.md) |
+| 0009 Sensors | SLPI + 16 MiB FastRPC heap, a one-line fastrpc fix from LKML, and an iio-sensor-proxy fork so auto-rotate starts | [sensors](docs/subsystems/sensors.md) |
+| 0010 Speaker | The machine driver never gave the CS35L41 its bit clock (PLL never locked). Gain 10, no protection DSP: **don't raise it** | [audio](docs/subsystems/audio.md) |
+| 0011 Bluetooth | DT only: `qcom,wcn3998-bt` on `uart13` with pin states; `bootmac` provides the BD address | [bluetooth](docs/subsystems/bluetooth.md) |
 
-**UFS (patch 0004).** The UFS 2.1 chip (WDC, `ufsid=0x145`) never came up: `link startup failed`. The DT let VCC (`ldo10`)
-range from 2.504 V, and the regulator core picks the minimum, a UFS 3.0 level. Fix: minimum 2.95 V, as downstream.
-Without it no cepheus with this UFS boots.
-
-**Display (0004).** The command-mode panel keeps its own frame memory, so simplefb never updates it. The bootloader names
-the panel (`dsi_samsung_fhd_ea8076_f1mp_cmd_display`); its init sequence matches mainline's `panel-samsung-ams639rq08`
-(raphael, same 6.39" module, EA8076 = its controller), so no new driver. Wiring: `&mdss_dsi0` + panel (vddio `l14a`,
-vdd3p3 = fixed regulator on tlmm 21, reset tlmm 6), TE on gpio8, 4 lanes. `modetest -v` (over `ssh -tt`) for page flips.
-
-**Coprocessors and Wi-Fi (0005).** The WCN3990 Wi-Fi firmware runs on the modem DSP: MPSS boots `modem.mdt` → fetches
-`wlanmdsp.mbn` via tqftpserv → talks QMI to `ath10k_snoc` (plus qrtr, rmtfs read-only, in-kernel pd-mapper).
-- Board data: ath10k reports `board_id 0xff`; Xiaomi's cnss-daemon falls back to `bdwlan.bin`, so
-  `board.bin → /run/msm-firmware-loader/target/bdwlan.bin`. Only `firmware-5.bin` (60-byte feature flags) is copied from
-  linux-firmware. **Don't install `linux-firmware-ath10k`**: its generic `board-2.bin` entry for board_id 0xff wins over
-  `board.bin` and silently replaces the Mi 9 calibration.
-- MAC: ath10k picks a random one. A udev rule runs `cepheus-wlan-mac` when `wlan0` appears; it reads `Intf0MacAddress`
-  from `persist/wlan_mac.bin` and sets it. NetworkManager is told to keep it (`50-cepheus-wifi-mac.conf`).
-- A cold reboot is the reliable reset; reloading ath10k or restarting the modem by hand fails.
-
-**GPU (0006).** `&gmu` + `&gpu` on, zap shader `a640_zap.mdt`. The other blobs load from `vendor` by bare name.
-
-**Touch (0007).** The sm8150 fork has ST's downstream FTM5 driver, but SPI-only (for the Pixel 4). The patch builds a
-second I2C module, `ftm5_i2c`. The Xiaomi touch firmware reports MP flag 0 and refuses to store one, so the driver re-ran
-a 40 s panel init on every probe; new DT property `st,ignore-mp-flag` skips that. Chip on `i2c17` @0x49.
-
-**Battery (0008).** Drivers existed; the patch adds a `simple-battery` node and enables charger + fuel gauge. The max
-voltage (4.4 V, downstream `fv-max-uv`) is written into the charger's float-voltage register, so it must match the cell.
-
-**Sensors (0009 + iio-sensor-proxy fork).** SLPI DSP (`slpi_cp.mdt`) → FastRPC → hexagonrpcd (serves the sensor registry
-from `persist` read-only) → libssc → iio-sensor-proxy. Three fixes: a 16 MiB FastRPC heap + `qcom,vmids` in the DT; a
-one-line fastrpc kernel fix from LKML (the sensors PD crashed right after attach); and an iio-sensor-proxy patch so
-sensors claimed during startup actually start polling (auto-rotate stayed "undefined" otherwise). The firmware reports no
-mount matrix: `81-libssc-xiaomi-cepheus.rules` sets X/Y inverted.
-
-**Speaker (0010).** CS35L41 amp on `i2c4`, fed by Quaternary MI2S. The sm8150 machine driver never gave the codec its bit
-clock, so the amp's PLL never locked; the patch sets the sysclk to 3.072 MHz. UCM in `phone-config/`: mono, analog gain 10.
-Xiaomi runs the amp's speaker-protection DSP firmware with calibration; we don't, so **don't raise the analog gain**.
-
-**Bluetooth (0011).** Kernel config and firmware (`qca/crbtfw21.tlv`, `crnv21.bin` from the `bluetooth` partition) were
-already there; only the DT was missing: `qcom,wcn3998-bt` on `uart13` with downstream supplies, and proper default/sleep
-pin states (sm8150.dtsi has none for uart13). The chip has no address of its own, so `bootmac` sets a stable one derived
-from the serial; `device-xiaomi-cepheus` masks bootmac's Wi-Fi rule so it doesn't overwrite the real Wi-Fi MAC.
-
-**Kernel name.** `CONFIG_LOCALVERSION="-sm8150-aurora"` in the package config. Drop it when upstreaming.
+`CONFIG_LOCALVERSION="-sm8150-aurora"` in the package config gives the kernel its name. Drop it when upstreaming.
 
 ## Development
 
@@ -155,18 +136,9 @@ scripts/test-dtb.sh         # builds a boot.img on the phone with the test DTB, 
 scripts/pm 'dmesg | tail'   # a normal reboot returns to the flashed image
 ```
 
-Package it: commit in the kernel tree, `git diff HEAD~1 > …/linux-postmarketos-qcom-sm8150/00NN-cepheus-<what>.patch`,
-add it to `source=` and bump `pkgrel` in the APKBUILD, then `pmbootstrap checksum linux-postmarketos-qcom-sm8150` and
-`pmbootstrap build --force linux-postmarketos-qcom-sm8150` (~7 min on 17 cores). Copy the `.apk` from
-`~/.local/var/pmbootstrap/packages/edge/aarch64/` into `apks/`, `scripts/pcp` it to the phone and
-`apk add --allow-untrusted` it (this flashes `boot`). Refresh the bundle after pmaports commits:
-`git bundle create pmaports/cepheus.bundle $(cat pmaports/BASE_COMMIT)..HEAD`.
-
-Tips:
-- Boot fails but ping works → the initramfs debug shell on port 23: `scripts/tn 'tail -40 /pmOS_init.log'`.
-- Testing a module on an older running kernel: strip `.BTF` (`llvm-objcopy --remove-section=.BTF`), or loading fails with `-22`.
-- Any `apk add` that triggers mkinitfs re-flashes `boot` from the installed kernel, which replaces a RAM-tested DTB.
-- Long jobs over ssh: `systemd-run --unit=x --collect sh -c '…'` on the phone.
+Then turn the kernel commit into a `00NN-cepheus-<what>.patch` in pmaports, bump `pkgrel`, `pmbootstrap checksum` +
+`build --force`, copy the `.apk` into `apks/` and `apk add --allow-untrusted` it on the phone (this flashes `boot`).
+Step by step, with diagrams: [Development workflow](docs/development.md) and [Packaging](docs/packaging.md).
 
 ## Recovery and safety
 
@@ -179,27 +151,29 @@ Fastboot lives in the bootloader, which none of this touches: **you can always g
 - `cepheus` is a placeholder password and is in `scripts/common.sh`. Change it (`passwd`, then `PHONE_PASS=…`) if that
   matters; with key login you can disable SSH password auth.
 
+More, including a "phone doesn't come up" flowchart: [Troubleshooting](docs/troubleshooting.md).
+
 ## Known issues and TODO
 
-1. **GPU faults at Plasma start**: a burst of `gpu fault` + one hangcheck recover in the first seconds of the session,
-   none afterwards. Suspect UBWC/highest-bank-bit config for A640; try `FD_MESA_DEBUG=noubwc`.
-2. **Panel polish**: Mi-9-specific `E9` OFC values and `D9`/`C0` blocks from the downstream panel dtsi; rounded corners clip the console.
-3. **Audio**: microphones (`AFE enable … ADSP_EALREADY` on SLIMBUS_0_TX), earpiece (TAS2557, no mainline driver), speaker protection.
+1. **GPU faults at Plasma start**: a burst of `gpu fault` + one hangcheck recover in the first seconds of the session.
+2. **Panel polish**: Mi-9-specific init values from the downstream panel dtsi; rounded corners clip the console.
+3. **Audio**: microphones (`ADSP_EALREADY` on SLIMBUS_0_TX), earpiece (TAS2557, no mainline driver), speaker protection.
 4. **Cellular**: the modem boots; needs ModemManager over QMI/qrtr and testing with a SIM.
-5. **Charging**: fast charging (SMB1390, QC/PD), wireless, Xiaomi's fuel-gauge profile. Battery temperature limits read −30 °C (cosmetic).
+5. **Charging**: fast charging (SMB1390, QC/PD), wireless, Xiaomi's fuel-gauge profile.
 6. **Sensors**: proximity isn't exposed; if the SLPI crashes, sensors stay dead until reboot.
 7. **Touch**: no suspend/wake integration; the driver also registers gesture keys.
 8. **Bluetooth**: audio profiles beyond the AirPods test are untested.
 9. **Variants**: the DT assumes the f1mp panel and WDC UFS. Other Mi 9 units may differ (panel `f1p2`, other UFS vendors).
 
+Suspected causes, roadmap and what upstreaming would take: [Known issues and roadmap](docs/known-issues.md).
+
 ## Patches that were done
 
 - pmaports: `pmaports/0001…0008-*.patch` against `device/testing/{linux-postmarketos-qcom-sm8150,device-xiaomi-cepheus}`.
-  Package `board.bin` + `firmware-5.bin` properly, or send a `board-2.bin` entry
-  (`bus=snoc,qmi-board-id=ff,qmi-chip-id=30224,variant=xiaomi_cepheus`) to ath10k-firmware.
-- Kernel: `kernel/0004…0011`
-  The UFS VCC fix matters most.
+- Kernel: `kernel/0004…0011`. The UFS VCC fix matters most.
 - iio-sensor-proxy: `pmaports/iio-sensor-proxy-0001-*.patch`
+
+Which kernel patch went into which pmaports commit and `pkgrel`: [Packaging](docs/packaging.md#patch-map).
 
 ## Repository layout
 
@@ -211,6 +185,7 @@ phone-config/          hand-made files installed on the phone, under their real 
 kernel/                kernel patches 0004–0011, the full resulting DTS, Xiaomi's downstream DT sources
 pmaports/              our pmaports commits as a git bundle (+ BASE_COMMIT) and as patches
 config/                pmbootstrap config
+docs/                  architecture, hardware, per-subsystem and workflow documentation (start at docs/README.md)
 docs/screenshots/      screenshots
 apks/, images/         built packages / local scratch (not in git)
 CLAUDE.md              brief for an AI agent continuing the work

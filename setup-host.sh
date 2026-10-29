@@ -116,5 +116,5 @@ cat <<EOF
 
 Done. Next:
   - plug the phone in (USB-C), then:  scripts/pm uptime
-  - read README.md (how everything works) and CLAUDE.md (state + next steps for an AI agent)
+  - read README.md and docs/ (how everything works) and CLAUDE.md (state + next steps for an AI agent)
 EOF
