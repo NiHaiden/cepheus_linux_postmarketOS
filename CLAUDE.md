@@ -21,7 +21,8 @@ If a `CLAUDE.local.md` exists, it describes the specific unit on the desk and ov
 - Initramfs debug shell (when boot fails): telnet :23, `scripts/tn '<cmd>'`.
 - Fastboot: from Linux `scripts/pms 'systemctl reboot --reboot-argument=bootloader'`; otherwise ask the user for Volume Down + Power.
 - Screen: you can't see it. Ask the user to look, or to send a screenshot, at each checkpoint that changes the display.
-- Build environment: macOS = OrbStack machine `pmos`, Linux = the host itself; `vmsh '…'` in `scripts/common.sh` picks the right one.
+- Build environment: macOS = OrbStack machine `pmos`, Linux = the host itself or the Docker container (`scripts/docker-env <cmd>`,
+  docs/docker.md); `vmsh '…'` in `scripts/common.sh` picks the right one.
   pmbootstrap 3.12.1, work dir `~/.local/var/pmbootstrap`, pmaports at `…/cache_git/pmaports` (main + our commits),
   kernel tree `~/src/linux-v7.0.0-sm8150` (git, patches applied).
 

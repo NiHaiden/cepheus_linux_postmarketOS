@@ -37,6 +37,7 @@ One page each: the data path as a diagram, the DT nodes, drivers, firmware, user
 | Page | What it covers |
 |---|---|
 | [Development workflow](development.md) | Host/VM layout, the DT edit → RAM-boot → package loop, kernel builds, refreshing the bundle |
+| [Docker build environment](docker.md) | Everything above in one container on a Linux host (`scripts/docker-env`) |
 | [Packaging](packaging.md) | The three packages we change, how kernel patches map to pmaports commits and `pkgrel`s, dependency graph |
 | [Phone setup](phone-setup.md) | What `cli/kde/phosh-setup.sh` do on the phone, file by file |
 | [Troubleshooting and recovery](troubleshooting.md) | Getting back to a working phone, the initramfs debug shell, symptoms → causes |

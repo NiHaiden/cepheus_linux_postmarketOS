@@ -13,8 +13,9 @@ How to change something and get it onto the phone safely. If you only want to in
 
 ## Environment
 
-`setup-host.sh` creates everything. On macOS, pmbootstrap needs a Linux VM. On Linux, it runs on the host. The scripts
-hide the difference behind `vmsh` (in `scripts/common.sh`).
+`setup-host.sh` creates everything. On macOS, pmbootstrap needs a Linux VM. On Linux, it runs on the host, or in a
+Docker container if you'd rather not install the toolchain ([Docker build environment](docker.md): prefix commands
+with `scripts/docker-env`). The scripts hide the difference behind `vmsh` (in `scripts/common.sh`).
 
 ```mermaid
 flowchart TB

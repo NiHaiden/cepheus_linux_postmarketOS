@@ -39,10 +39,14 @@ How each part works: [Documentation](#documentation).
 - **macOS:** Apple silicon, Homebrew, ~15 GB disk. pmbootstrap runs in an OrbStack VM (`pmos`, Alpine edge).
 - **Linux:** install `git python3 fastboot curl make clang lld llvm dtc flex bison bc perl`, openssl + libelf headers,
   `sudo` or `doas`; optional `tinyproxy` and `netcat`. pmbootstrap runs on the host (on x86_64 it cross-compiles).
+- **Linux with Docker:** only rootful Docker needed. Prefix commands with `scripts/docker-env` to run them in a
+  container that has all of the above ([docs/docker.md](docs/docker.md)).
 
 ```sh
 git clone <this repo> cepheus-linux && cd cepheus-linux
 ./setup-host.sh     # tools/VM (macOS) or tool check (Linux), pmbootstrap 3.12.1, our pmaports, kernel tree
+# or, on Linux with Docker:
+scripts/docker-env ./setup-host.sh
 ```
 
 It applies `pmaports/cepheus.bundle` on top of current pmaports (or resets to our exact base if that conflicts) and creates
@@ -180,7 +184,9 @@ Which kernel patch went into which pmaports commit and `pkgrel`: [Packaging](doc
 ```
 setup-host.sh          dev environment (macOS VM or Linux host)
 scripts/               {cli,kde,phosh}-setup.sh + phone-setup.sh; pm/pms/pcp (ssh helpers); tn (initramfs shell);
-                       vm-build-dtb.sh, test-dtb.sh, phone-mkboot.sh (DT loop); flash-boot-from-linux.sh; common.sh (settings)
+                       vm-build-dtb.sh, test-dtb.sh, phone-mkboot.sh (DT loop); flash-boot-from-linux.sh; common.sh (settings);
+                       docker-env (run any of this in the Docker build environment)
+docker/                Dockerfile + entrypoint for the Linux build container
 phone-config/          hand-made files installed on the phone, under their real paths
 kernel/                kernel patches 0004–0011, the full resulting DTS, Xiaomi's downstream DT sources
 pmaports/              our pmaports commits as a git bundle (+ BASE_COMMIT) and as patches

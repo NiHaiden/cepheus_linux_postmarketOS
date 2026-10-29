@@ -1,0 +1,41 @@
+#!/bin/sh
+# Linux host: run the build environment in Docker instead of installing toolchains on the host (docs/docker.md).
+# The repo is mounted at the same path inside, so every script works unchanged; pmbootstrap's work dir and the
+# kernel tree live in a named volume. Needs rootful Docker (privileged: binfmt_misc, loop devices, USB).
+#   scripts/docker-env                       # shell in the container
+#   scripts/docker-env ./setup-host.sh       # first time: pmbootstrap, pmaports with our commits, kernel tree
+#   scripts/docker-env pmbootstrap build --force linux-postmarketos-qcom-sm8150
+#   scripts/docker-env --rebuild             # rebuild the image (after editing docker/)
+# Environment: CEPHEUS_IMAGE (cepheus-build), CEPHEUS_VOLUME (cepheus-home), CEPHEUS_DOCKER_ARGS (extra docker run args)
+set -e
+R="$(cd "$(dirname "$0")/.." && pwd)"
+IMAGE="${CEPHEUS_IMAGE:-cepheus-build}"
+VOLUME="${CEPHEUS_VOLUME:-cepheus-home}"
+
+# The container user takes the repo owner's IDs, so files it writes into the repo are yours.
+uid=$(stat -c %u "$R"); gid=$(stat -c %g "$R")
+if [ "$uid" = 0 ]; then
+	echo "warning: the repo is owned by root; the container user (UID 1000) can't write apks/ and images/" >&2
+	uid=1000; gid=1000
+fi
+
+rebuild=
+[ "$1" = --rebuild ] && { rebuild=1; shift; }
+have=$(docker image inspect -f '{{index .Config.Labels "cepheus.uid"}}:{{index .Config.Labels "cepheus.gid"}}' "$IMAGE" 2>/dev/null || true)
+if [ -n "$rebuild" ] || [ "$have" != "$uid:$gid" ]; then
+	docker build --pull --build-arg UID="$uid" --build-arg GID="$gid" -t "$IMAGE" "$R/docker"
+	[ $# -gt 0 ] || [ -z "$rebuild" ] || exit 0
+fi
+
+# Start where you are if that's inside the repo
+case "$PWD/" in "$R"/*) wd="$PWD";; *) wd="$R";; esac
+tty=; [ -t 0 ] && [ -t 1 ] && tty=-t
+usb=; [ -d /dev/bus/usb ] && usb="-v /dev/bus/usb:/dev/bus/usb"   # fastboot sees the phone after it re-enumerates
+
+# --network host: the phone's USB network (172.16.42.1) and the cli-setup tinyproxy on 172.16.42.2 are host interfaces.
+# shellcheck disable=SC2086
+exec docker run --rm -i $tty --privileged --network host \
+	-v "$R:$R" -w "$wd" -v "$VOLUME:/home/builder" $usb \
+	-e PHONE_IP -e PHONE_USER -e PHONE_PASS -e WIFI_SSID -e WIFI_PSK \
+	-e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY \
+	$CEPHEUS_DOCKER_ARGS "$IMAGE" "$@"
