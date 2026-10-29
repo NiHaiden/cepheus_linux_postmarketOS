@@ -9,6 +9,11 @@ scripts/docker-env ./setup-host.sh     # once: pmbootstrap, pmaports with our co
 scripts/docker-env                      # a shell; everything from the README and docs works in there
 ```
 
+Tested on an x86_64 host (Docker 29): `setup-host.sh` completes in the container, including the DTB build, and
+`pmbootstrap build device-xiaomi-cepheus` produces `linux-postmarketos-qcom-sm8150-7.0.0-r8` (`7.0.0-sm8150-aurora`,
+with `ftm5_i2c` and the cepheus DTB) and `device-xiaomi-cepheus-7-r1`. The phone-facing parts (fastboot, ssh over USB)
+haven't been tested from the container yet.
+
 ## How it's put together
 
 ```mermaid
@@ -83,8 +88,11 @@ inside the container, the same as on a normal host. That makes them visible on t
   package builds and `pmbootstrap install` fail there.
 - **binfmt_misc belongs to the host kernel.** The qemu-aarch64 handler that pmbootstrap registers stays active on the
   host after the container exits (until reboot, or `pmbootstrap shutdown`). On an aarch64 host none of this is needed.
-- **x86_64 hosts cross-compile.** The kernel package builds with a cross toolchain. Packages built in the aarch64 chroot
-  (`device-xiaomi-cepheus`, `iio-sensor-proxy`) run under qemu, which is slower than native.
+- **x86_64 hosts cross-compile.** pmbootstrap builds the kernel package "cross-native" (cross toolchain in the x86_64
+  chroot): about 1.5 h on 4 cores the first time, much less with more cores and a warm ccache. Other packages
+  (`device-xiaomi-cepheus`, `iio-sensor-proxy`) build "crossdirect" in an aarch64 chroot under qemu.
+- **pmbootstrap builds outdated dependencies first.** `pmbootstrap build device-xiaomi-cepheus` on a fresh volume also
+  builds the kernel, because the device package depends on it.
 - **One container at a time.** Two containers sharing the volume would run two pmbootstraps on one work dir.
 - **The volume is the state.** `docker volume rm cepheus-home` wipes pmbootstrap, pmaports (including any uncommitted
   work there!) and the kernel tree. Refresh `pmaports/cepheus.bundle` before you do that.
